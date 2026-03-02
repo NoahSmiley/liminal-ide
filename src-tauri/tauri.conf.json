@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Hive",
+  "productName": "Liminal",
   "version": "0.1.0",
-  "identifier": "com.liminal.hive",
+  "identifier": "com.liminal.ide",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Hive",
+        "title": "Liminal",
         "width": 1280,
         "height": 800,
         "resizable": true,

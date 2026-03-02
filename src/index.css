@@ -24,13 +24,6 @@
   --color-ring: #a1a1aa;
   --color-panel-border: #27272a;
 
-  --color-agent-pm: #8B5CF6;
-  --color-agent-designer: #EC4899;
-  --color-agent-architect: #06B6D4;
-  --color-agent-developer: #F59E0B;
-  --color-agent-qa: #10B981;
-  --color-agent-devops: #EF4444;
-
   --radius: 0px;
 }
 
@@ -61,7 +54,7 @@ body {
   animation: blink 1s step-end infinite;
 }
 
-/* ── btop-style TUI panel ── */
+/* -- btop-style TUI panel -- */
 .tui-panel {
   position: relative;
   border: 1px solid var(--color-panel-border);
@@ -84,29 +77,7 @@ body {
   white-space: nowrap;
 }
 
-.tui-panel-title-accent {
-  color: var(--color-foreground);
-}
-
-/* panel inside a card/secondary bg */
-.bg-card .tui-panel-title,
-.bg-secondary .tui-panel-title {
-  background-color: var(--color-card);
-}
-
-[data-kb-selected="true"] {
-  background-color: rgba(161, 161, 170, 0.08);
-  outline: 1px solid var(--color-panel-border);
-  outline-offset: -1px;
-}
-
 ::selection {
   background-color: #27272a;
   color: #fafafa;
-}
-
-/* ── hacker mode: disable all mouse input ── */
-.hacker-mode,
-.hacker-mode * {
-  pointer-events: none !important;
 }
