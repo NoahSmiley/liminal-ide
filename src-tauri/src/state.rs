@@ -4,6 +4,7 @@ use crate::core::events::EventBus;
 use crate::core::filesystem::FileSystemManager;
 use crate::core::project::ProjectManager;
 use crate::core::session::SessionManager;
+use crate::core::terminal::TerminalManager;
 
 pub struct AppState {
     pub config: AppConfig,
@@ -12,6 +13,7 @@ pub struct AppState {
     pub fs_manager: FileSystemManager,
     pub session_manager: SessionManager,
     pub ai_engine: AiEngine,
+    pub terminal_manager: TerminalManager,
 }
 
 impl AppState {
@@ -25,6 +27,7 @@ impl AppState {
             fs_manager: FileSystemManager::new(),
             session_manager: SessionManager::new(),
             ai_engine,
+            terminal_manager: TerminalManager::new(),
         }
     }
 }
