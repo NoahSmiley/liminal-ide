@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: #000000;
+  --color-foreground: #e4e4e7;
+  --color-card: #050505;
+  --color-card-foreground: #d4d4d8;
+  --color-popover: #050505;
+  --color-popover-foreground: #d4d4d8;
+  --color-primary: #d4d4d8;
+  --color-primary-foreground: #09090b;
+  --color-secondary: #111113;
+  --color-secondary-foreground: #d4d4d8;
+  --color-muted: #111113;
+  --color-muted-foreground: #52525b;
+  --color-accent: #1a1a1e;
+  --color-accent-foreground: #d4d4d8;
+  --color-destructive: #7f1d1d;
+  --color-destructive-foreground: #d4d4d8;
+  --color-border: #1e1e22;
+  --color-input: #1e1e22;
+  --color-ring: #a1a1aa;
+  --color-panel-border: #27272a;
+
+  --color-agent-pm: #8B5CF6;
+  --color-agent-designer: #EC4899;
+  --color-agent-architect: #06B6D4;
+  --color-agent-developer: #F59E0B;
+  --color-agent-qa: #10B981;
+  --color-agent-devops: #EF4444;
+
+  --radius: 0px;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* ── btop-style TUI panel ── */
+.tui-panel {
+  position: relative;
+  border: 1px solid var(--color-panel-border);
+  padding: 6px 8px;
+  min-height: 0;
+}
+
+.tui-panel-title {
+  position: absolute;
+  top: -1px;
+  left: 8px;
+  transform: translateY(-50%);
+  background-color: var(--color-background);
+  padding: 0 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-muted-foreground);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tui-panel-title-accent {
+  color: var(--color-foreground);
+}
+
+/* panel inside a card/secondary bg */
+.bg-card .tui-panel-title,
+.bg-secondary .tui-panel-title {
+  background-color: var(--color-card);
+}
+
+[data-kb-selected="true"] {
+  background-color: rgba(161, 161, 170, 0.08);
+  outline: 1px solid var(--color-panel-border);
+  outline-offset: -1px;
+}
+
+::selection {
+  background-color: #27272a;
+  color: #fafafa;
+}
+
+/* ── hacker mode: disable all mouse input ── */
+.hacker-mode,
+.hacker-mode * {
+  pointer-events: none !important;
+}
