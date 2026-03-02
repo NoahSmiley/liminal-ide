@@ -87,15 +87,14 @@ export function AppShell() {
       }
 
       if (input.startsWith("!")) {
-        if (!terminalId) {
-          const id = await invoke<string>("spawn_terminal");
-          setTerminalId(id);
+        let tid = terminalId;
+        if (!tid) {
+          tid = await invoke<string>("spawn_terminal");
+          setTerminalId(tid);
           if (!panels.terminalOpen) toggleTerminal();
         }
         const cmd = input.slice(1) + "\n";
-        if (terminalId) {
-          await invoke("send_terminal_input", { terminalId, input: cmd });
-        }
+        await invoke("send_terminal_input", { terminalId: tid, input: cmd });
         return;
       }
 
