@@ -1,12 +1,6 @@
 pub mod streaming;
 pub mod types;
 
-use uuid::Uuid;
-
-use crate::core::events::EventBus;
-use crate::core::session::{Message, Role, SessionManager};
-use crate::error::AiError;
-
 const DEFAULT_SYSTEM_PROMPT: &str =
     "You are Liminal, an AI coding assistant inside a terminal IDE. \
      You help users build software by writing code, creating files, \
@@ -21,45 +15,12 @@ impl AiEngine {
         Self { model }
     }
 
-    pub async fn send_message(
-        &self,
-        event_bus: &EventBus,
-        session_manager: &SessionManager,
-        session_id: Uuid,
-        user_message: String,
-    ) -> Result<(), AiError> {
-        session_manager
-            .append_message(
-                session_id,
-                Message {
-                    role: Role::User,
-                    content: user_message.clone(),
-                },
-            )
-            .await
-            .map_err(|e| AiError::ProcessCrashed(e.to_string()))?;
+    pub fn model(&self) -> &str {
+        &self.model
+    }
 
-        let response = streaming::stream_claude_response(
-            event_bus,
-            session_id,
-            &user_message,
-            DEFAULT_SYSTEM_PROMPT,
-            &self.model,
-        )
-        .await?;
-
-        session_manager
-            .append_message(
-                session_id,
-                Message {
-                    role: Role::Assistant,
-                    content: response,
-                },
-            )
-            .await
-            .map_err(|e| AiError::ProcessCrashed(e.to_string()))?;
-
-        Ok(())
+    pub fn system_prompt() -> &'static str {
+        DEFAULT_SYSTEM_PROMPT
     }
 
     pub fn check_availability() -> bool {

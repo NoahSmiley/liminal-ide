@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -33,14 +34,15 @@ pub struct SessionSummary {
     pub preview: String,
 }
 
+#[derive(Clone)]
 pub struct SessionManager {
-    sessions: Mutex<HashMap<Uuid, Session>>,
+    sessions: Arc<Mutex<HashMap<Uuid, Session>>>,
 }
 
 impl SessionManager {
     pub fn new() -> Self {
         Self {
-            sessions: Mutex::new(HashMap::new()),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 

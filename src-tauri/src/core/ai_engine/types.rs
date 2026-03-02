@@ -5,25 +5,22 @@ use serde::Deserialize;
 #[serde(tag = "type")]
 pub enum ClaudeStreamEvent {
     #[serde(rename = "assistant")]
-    Assistant { message: AssistantMessage },
-
-    #[serde(rename = "content_block_start")]
-    ContentBlockStart {
-        index: usize,
-        content_block: ContentBlock,
+    Assistant {
+        message: AssistantMessage,
     },
 
-    #[serde(rename = "content_block_delta")]
-    ContentBlockDelta { index: usize, delta: Delta },
+    #[serde(rename = "result")]
+    Result {
+        result: String,
+        #[serde(default)]
+        is_error: bool,
+    },
 
-    #[serde(rename = "content_block_stop")]
-    ContentBlockStop { index: usize },
+    #[serde(rename = "system")]
+    System {},
 
-    #[serde(rename = "message_start")]
-    MessageStart {},
-
-    #[serde(rename = "message_stop")]
-    MessageStop {},
+    #[serde(rename = "rate_limit_event")]
+    RateLimitEvent {},
 
     #[serde(other)]
     Unknown,
@@ -31,7 +28,8 @@ pub enum ClaudeStreamEvent {
 
 #[derive(Debug, Deserialize)]
 pub struct AssistantMessage {
-    pub content: Option<Vec<ContentBlock>>,
+    #[serde(default)]
+    pub content: Vec<ContentBlock>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,19 +44,6 @@ pub enum ContentBlock {
         name: String,
         input: serde_json::Value,
     },
-
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum Delta {
-    #[serde(rename = "text_delta")]
-    TextDelta { text: String },
-
-    #[serde(rename = "input_json_delta")]
-    InputJsonDelta { partial_json: String },
 
     #[serde(other)]
     Unknown,

@@ -31,79 +31,107 @@ export function AppShell() {
       .catch(() => setClaudeAvailable(false));
   }, []);
 
-  const handleProjectCreated = useCallback(
-    async (p: Project) => {
-      setProject(p);
-      const session = await invoke<{ id: string }>("create_session", {
-        projectId: p.id,
-      });
-      setSessionId(session.id);
-      refresh();
-    },
-    [refresh],
-  );
-
-  const handleCommand = useCallback(
-    async (cmd: string, args: string) => {
-      switch (cmd) {
-        case "new": {
-          const name = args || "untitled";
-          const path = `${name}`;
-          const p = await invoke<Project>("create_project", { name, path });
-          await handleProjectCreated(p);
-          break;
-        }
-        case "open": {
-          if (!args) break;
-          const p = await invoke<Project>("open_project", { path: args });
-          await handleProjectCreated(p);
-          break;
-        }
-        case "files":
-          toggleFileTree();
-          if (!panels.fileTreeOpen) refresh();
-          break;
-        case "terminal":
-          toggleTerminal();
-          break;
-        default:
-          addUserMessage(`unknown command: /${cmd}`);
-      }
-    },
-    [handleProjectCreated, toggleFileTree, toggleTerminal, panels.fileTreeOpen, refresh, addUserMessage],
-  );
-
   const handleInput = useCallback(
     async (input: string) => {
-      if (input.startsWith("/")) {
-        const [cmd = "", ...rest] = input.slice(1).split(" ");
-        await handleCommand(cmd, rest.join(" "));
-        return;
-      }
+      try {
+        if (input.startsWith("/")) {
+          const [cmd = "", ...rest] = input.slice(1).split(" ");
+          const args = rest.join(" ");
 
-      if (!sessionId) {
-        addUserMessage("no project open -- use /new or /open first");
-        return;
-      }
-
-      if (input.startsWith("!")) {
-        let tid = terminalId;
-        if (!tid) {
-          tid = await invoke<string>("spawn_terminal");
-          setTerminalId(tid);
-          if (!panels.terminalOpen) toggleTerminal();
+          switch (cmd) {
+            case "new": {
+              const name = args || "untitled";
+              const p = await invoke<Project>("create_project", {
+                name,
+                path: name,
+              });
+              setProject(p);
+              const session = await invoke<{ id: string }>(
+                "create_session",
+                { projectId: p.id },
+              );
+              setSessionId(session.id);
+              addUserMessage(`project "${name}" created`);
+              refresh();
+              break;
+            }
+            case "open": {
+              if (!args) {
+                addUserMessage("usage: /open <path>");
+                break;
+              }
+              const p = await invoke<Project>("open_project", { path: args });
+              setProject(p);
+              const session = await invoke<{ id: string }>(
+                "create_session",
+                { projectId: p.id },
+              );
+              setSessionId(session.id);
+              addUserMessage(`opened ${args}`);
+              refresh();
+              break;
+            }
+            case "files":
+              toggleFileTree();
+              refresh();
+              break;
+            case "terminal":
+              toggleTerminal();
+              break;
+            case "refresh":
+              refresh();
+              addUserMessage("refreshed");
+              break;
+            case "help":
+              addUserMessage(
+                [
+                  "commands:",
+                  "  /new <name>    create a new project",
+                  "  /open <path>   open an existing project",
+                  "  /files         toggle file tree panel",
+                  "  /terminal      toggle terminal panel",
+                  "  /refresh       refresh file tree",
+                  "  /help          show this help",
+                  "",
+                  "  !<cmd>         run a shell command",
+                  "  anything else  talk to the AI",
+                ].join("\n"),
+              );
+              break;
+            default:
+              addUserMessage(`unknown command: /${cmd}`);
+          }
+          return;
         }
-        const cmd = input.slice(1) + "\n";
-        await invoke("send_terminal_input", { terminalId: tid, input: cmd });
-        return;
-      }
 
-      addUserMessage(input);
-      await invoke("send_message", { sessionId, content: input }).catch(
-        (err: unknown) => addUserMessage(`error: ${String(err)}`),
-      );
+        if (!sessionId) {
+          addUserMessage("no project open — use /new or /open first");
+          return;
+        }
+
+        if (input.startsWith("!")) {
+          let tid = terminalId;
+          if (!tid) {
+            tid = await invoke<string>("spawn_terminal");
+            setTerminalId(tid);
+            if (!panels.terminalOpen) toggleTerminal();
+          }
+          await invoke("send_terminal_input", {
+            terminalId: tid,
+            input: input.slice(1) + "\n",
+          });
+          return;
+        }
+
+        addUserMessage(input);
+        await invoke("send_message", { sessionId, content: input }).catch(
+          (err: unknown) => addUserMessage(`error: ${String(err)}`),
+        );
+      } catch (err) {
+        addUserMessage(`error: ${String(err)}`);
+      }
     },
-    [sessionId, terminalId, panels.terminalOpen, handleCommand, addUserMessage, toggleTerminal],
+    [sessionId, terminalId, panels.terminalOpen, addUserMessage, refresh, toggleFileTree, toggleTerminal],
   );
 
   return (
@@ -122,11 +150,13 @@ export function AppShell() {
         )}
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-4">
-            {project ? (
+            {messages.length > 0 ? (
               <ConversationStream messages={messages} streaming={streaming} />
             ) : (
               <p className="text-zinc-600 text-[12px]">
-                no project open -- type /new or /open to start
+                {project
+                  ? "start a conversation — type below"
+                  : "no project open — type /new <name> or /open <path> to start"}
               </p>
             )}
           </div>
