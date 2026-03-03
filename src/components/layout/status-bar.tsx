@@ -1,6 +1,5 @@
 import { LiminalLogo } from "../shared/liminal-logo";
 import { CollabIndicator } from "./collab-indicator";
-import { WindowControls } from "./window-controls";
 import { ModelSelector } from "./model-selector";
 import { ProjectSwitcher } from "./project-switcher";
 import type { CollabStatus } from "../../types/collab-types";
@@ -34,7 +33,7 @@ export function StatusBar({
 
   return (
     <div data-tauri-drag-region data-tutorial="status-bar"
-      className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/50">
+      className="flex items-center justify-between pl-[78px] pr-4 py-2.5 border-b border-zinc-800/50">
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleFileTree}
@@ -75,7 +74,6 @@ export function StatusBar({
             config
           </button>
         </div>
-        <WindowControls />
       </div>
     </div>
   );
