@@ -1,5 +1,8 @@
+pub mod storage;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -19,7 +22,7 @@ pub struct Message {
     pub content: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Session {
     pub id: Uuid,
     pub project_id: Uuid,
@@ -37,12 +40,21 @@ pub struct SessionSummary {
 #[derive(Clone)]
 pub struct SessionManager {
     sessions: Arc<Mutex<HashMap<Uuid, Session>>>,
+    data_dir: Option<PathBuf>,
 }
 
 impl SessionManager {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            data_dir: None,
+        }
+    }
+
+    pub fn with_data_dir(data_dir: PathBuf) -> Self {
+        Self {
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            data_dir: Some(data_dir),
         }
     }
 
@@ -54,6 +66,9 @@ impl SessionManager {
         };
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session.id, session.clone());
+        if let Some(dir) = &self.data_dir {
+            let _ = storage::save(dir, &session);
+        }
         session
     }
 
@@ -67,18 +82,28 @@ impl SessionManager {
             .get_mut(&session_id)
             .ok_or(SessionError::NotFound(session_id.to_string()))?;
         session.messages.push(message);
+        if let Some(dir) = &self.data_dir {
+            let _ = storage::save(dir, session);
+        }
         Ok(())
     }
 
-    pub async fn get_session(
-        &self,
-        session_id: Uuid,
-    ) -> Result<Session, SessionError> {
+    pub async fn get_session(&self, session_id: Uuid) -> Result<Session, SessionError> {
         let sessions = self.sessions.lock().await;
-        sessions
-            .get(&session_id)
-            .cloned()
-            .ok_or(SessionError::NotFound(session_id.to_string()))
+        if let Some(s) = sessions.get(&session_id) {
+            return Ok(s.clone());
+        }
+        drop(sessions);
+
+        // Try loading from disk
+        if let Some(dir) = &self.data_dir {
+            let session = storage::load(dir, &session_id.to_string())?;
+            let mut sessions = self.sessions.lock().await;
+            sessions.insert(session.id, session.clone());
+            return Ok(session);
+        }
+
+        Err(SessionError::NotFound(session_id.to_string()))
     }
 
     pub async fn list_sessions(&self, project_id: Uuid) -> Vec<SessionSummary> {
@@ -109,10 +134,7 @@ mod tests {
         let mgr = SessionManager::new();
         let project_id = Uuid::new_v4();
         let session = mgr.create_session(project_id).await;
-        let retrieved = mgr
-            .get_session(session.id)
-            .await
-            .expect("session not found");
+        let retrieved = mgr.get_session(session.id).await.expect("session not found");
         assert_eq!(retrieved.id, session.id);
     }
 
@@ -122,10 +144,7 @@ mod tests {
         let session = mgr.create_session(Uuid::new_v4()).await;
         mgr.append_message(
             session.id,
-            Message {
-                role: Role::User,
-                content: "hello".into(),
-            },
+            Message { role: Role::User, content: "hello".into() },
         )
         .await
         .expect("append failed");
@@ -139,5 +158,26 @@ mod tests {
         let mgr = SessionManager::new();
         let result = mgr.get_session(Uuid::new_v4()).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn persistence_round_trip() {
+        let dir = std::env::temp_dir().join("liminal-session-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mgr = SessionManager::with_data_dir(dir.clone());
+        let session = mgr.create_session(Uuid::new_v4()).await;
+        mgr.append_message(
+            session.id,
+            Message { role: Role::User, content: "persisted".into() },
+        )
+        .await
+        .unwrap();
+
+        // Load from a fresh manager
+        let mgr2 = SessionManager::with_data_dir(dir.clone());
+        let loaded = mgr2.get_session(session.id).await.expect("load failed");
+        assert_eq!(loaded.messages.len(), 1);
+        assert_eq!(loaded.messages[0].content, "persisted");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

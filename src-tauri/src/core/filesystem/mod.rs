@@ -1,3 +1,5 @@
+pub mod tree;
+
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -16,6 +18,7 @@ pub struct FileContent {
     pub content: String,
 }
 
+#[derive(Clone)]
 pub struct FileSystemManager;
 
 impl FileSystemManager {
@@ -87,6 +90,22 @@ impl FileSystemManager {
             std::fs::create_dir_all(parent).map_err(FsError::Io)?;
         }
         std::fs::write(&safe_path, content).map_err(FsError::Io)?;
+        Ok(())
+    }
+
+    pub fn rename_file(
+        &self,
+        project_root: &Path,
+        old_path: &Path,
+        new_path: &Path,
+    ) -> Result<(), FsError> {
+        let safe_old = self.validate_path(project_root, old_path)?;
+        let safe_new = self.validate_path(project_root, new_path)?;
+        if let Some(parent) = safe_new.parent() {
+            std::fs::create_dir_all(parent).map_err(FsError::Io)?;
+        }
+        std::fs::rename(&safe_old, &safe_new)
+            .map_err(|_| FsError::NotFound(old_path.display().to_string()))?;
         Ok(())
     }
 

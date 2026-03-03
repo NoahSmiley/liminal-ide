@@ -1,3 +1,5 @@
+pub mod storage;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,6 +25,7 @@ pub struct ProjectSummary {
 pub struct ProjectManager {
     projects: Mutex<HashMap<Uuid, Project>>,
     active_project: Mutex<Option<Uuid>>,
+    data_dir: Option<PathBuf>,
 }
 
 impl ProjectManager {
@@ -30,6 +33,26 @@ impl ProjectManager {
         Self {
             projects: Mutex::new(HashMap::new()),
             active_project: Mutex::new(None),
+            data_dir: None,
+        }
+    }
+
+    pub fn with_data_dir(data_dir: PathBuf) -> Self {
+        let mut mgr = Self {
+            projects: Mutex::new(HashMap::new()),
+            active_project: Mutex::new(None),
+            data_dir: Some(data_dir.clone()),
+        };
+        mgr.load_persisted();
+        mgr
+    }
+
+    fn load_persisted(&mut self) {
+        let Some(dir) = &self.data_dir else { return };
+        let persisted = storage::load_all(dir);
+        let projects = self.projects.get_mut();
+        for p in persisted {
+            projects.insert(p.id, p);
         }
     }
 
@@ -51,6 +74,9 @@ impl ProjectManager {
 
         let mut projects = self.projects.lock().await;
         projects.insert(project.id, project.clone());
+        if let Some(dir) = &self.data_dir {
+            let _ = storage::save(dir, &project);
+        }
 
         let mut active = self.active_project.lock().await;
         *active = Some(project.id);
@@ -68,12 +94,41 @@ impl ProjectManager {
             ));
         }
 
+        // Deduplicate: reuse existing entry if same path already known
+        let canonical = std::fs::canonicalize(&path)
+            .unwrap_or_else(|_| path.clone());
+        {
+            let projects = self.projects.lock().await;
+            for project in projects.values() {
+                let existing = std::fs::canonicalize(&project.root_path)
+                    .unwrap_or_else(|_| project.root_path.clone());
+                if existing == canonical {
+                    let mut active = self.active_project.lock().await;
+                    *active = Some(project.id);
+                    return Ok(project.clone());
+                }
+            }
+        }
+
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "untitled".to_string());
 
         self.create_project(name, path).await
+    }
+
+    pub async fn remove_project(&self, id: Uuid) -> Result<(), ProjectError> {
+        let mut projects = self.projects.lock().await;
+        projects.remove(&id);
+        if let Some(dir) = &self.data_dir {
+            storage::remove(dir, &id.to_string())?;
+        }
+        let mut active = self.active_project.lock().await;
+        if *active == Some(id) {
+            *active = None;
+        }
+        Ok(())
     }
 
     pub async fn get_active(&self) -> Option<Project> {
@@ -96,29 +151,4 @@ impl ProjectManager {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-
-    #[tokio::test]
-    async fn create_project_sets_active() {
-        let mgr = ProjectManager::new();
-        let tmp = env::temp_dir().join("liminal-test-create");
-        let project = mgr
-            .create_project("test".into(), tmp.clone())
-            .await
-            .expect("create failed");
-        let active = mgr.get_active().await.expect("no active project");
-        assert_eq!(active.id, project.id);
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[tokio::test]
-    async fn open_nonexistent_path_fails() {
-        let mgr = ProjectManager::new();
-        let result = mgr
-            .open_project(PathBuf::from("/nonexistent/path/liminal-test"))
-            .await;
-        assert!(result.is_err());
-    }
-}
+mod tests;

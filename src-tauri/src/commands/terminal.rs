@@ -36,6 +36,13 @@ pub async fn send_terminal_input(
 }
 
 #[tauri::command]
+pub async fn list_terminals(
+    state: State<'_, AppState>,
+) -> Result<Vec<Uuid>, AppError> {
+    Ok(state.terminal_manager.list().await)
+}
+
+#[tauri::command]
 pub async fn kill_terminal(
     state: State<'_, AppState>,
     terminal_id: Uuid,

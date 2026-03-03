@@ -14,7 +14,7 @@ impl Default for AppConfig {
 
         Self {
             claude_model: "sonnet".to_string(),
-            claude_timeout_seconds: 120,
+            claude_timeout_seconds: 300,
             data_dir,
         }
     }

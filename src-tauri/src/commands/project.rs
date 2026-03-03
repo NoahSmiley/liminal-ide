@@ -1,9 +1,20 @@
 use std::path::PathBuf;
 use tauri::State;
+use uuid::Uuid;
 
 use crate::core::project::{Project, ProjectSummary};
+use crate::core::watcher;
 use crate::error::AppError;
 use crate::state::AppState;
+
+fn resolve_path(raw: &str) -> PathBuf {
+    let p = PathBuf::from(raw);
+    if p.is_absolute() {
+        p
+    } else {
+        dirs_next::home_dir().unwrap_or_else(|| PathBuf::from(".")).join(raw)
+    }
+}
 
 #[tauri::command]
 pub async fn create_project(
@@ -13,8 +24,9 @@ pub async fn create_project(
 ) -> Result<Project, AppError> {
     let project = state
         .project_manager
-        .create_project(name, PathBuf::from(path))
+        .create_project(name, resolve_path(&path))
         .await?;
+    start_watcher(&state, &project.root_path).await;
     Ok(project)
 }
 
@@ -25,9 +37,29 @@ pub async fn open_project(
 ) -> Result<Project, AppError> {
     let project = state
         .project_manager
-        .open_project(PathBuf::from(path))
+        .open_project(resolve_path(&path))
         .await?;
+    start_watcher(&state, &project.root_path).await;
+    *state.cli_session_id.lock().await = None;
     Ok(project)
+}
+
+async fn start_watcher(state: &AppState, root: &std::path::Path) {
+    let mut w = state.file_watcher.lock().await;
+    *w = None;
+    match watcher::start_watching(root, state.event_bus.clone()) {
+        Ok(handle) => *w = Some(handle),
+        Err(e) => eprintln!("[liminal] file watcher failed: {e}"),
+    }
+}
+
+#[tauri::command]
+pub async fn remove_project(
+    state: State<'_, AppState>,
+    id: Uuid,
+) -> Result<(), AppError> {
+    state.project_manager.remove_project(id).await?;
+    Ok(())
 }
 
 #[tauri::command]

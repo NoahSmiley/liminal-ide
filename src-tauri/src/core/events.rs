@@ -11,11 +11,15 @@ pub enum AppEvent {
     Session(SessionEvent),
     Project(ProjectEvent),
     System(SystemEvent),
+    Lsp(LspEvent),
+    Lint(LintEvent),
+    Settings(SettingsEvent),
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind")]
 pub enum AiEvent {
+    Thinking { session_id: Uuid },
     TextDelta { session_id: Uuid, content: String },
     ToolUse { session_id: Uuid, tool_id: String, name: String, input: String },
     ToolResult { session_id: Uuid, tool_id: String, output: String },
@@ -28,7 +32,9 @@ pub enum AiEvent {
 pub enum FsEvent {
     FileCreated { path: String, content: String },
     FileModified { path: String, content: String },
+    FileRenamed { old_path: String, new_path: String },
     FileDeleted { path: String },
+    FileChangeDetected { path: String, before: Option<String>, after: String, turn_id: Uuid },
     TreeUpdated { root: String },
 }
 
@@ -60,6 +66,27 @@ pub enum SystemEvent {
     Error { message: String },
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind")]
+pub enum LspEvent {
+    ServerStarted { name: String },
+    ServerError { name: String, message: String },
+    Diagnostics { name: String, data: serde_json::Value },
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind")]
+pub enum LintEvent {
+    Started { command: String },
+    Complete { success: bool, output: String, command: String },
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind")]
+pub enum SettingsEvent {
+    Updated { settings: crate::core::settings::schema::Settings },
+}
+
 #[derive(Clone)]
 pub struct EventBus {
     app_handle: AppHandle,
@@ -78,6 +105,9 @@ impl EventBus {
             AppEvent::Session(_) => "session:event",
             AppEvent::Project(_) => "project:event",
             AppEvent::System(_) => "system:event",
+            AppEvent::Lsp(_) => "lsp:event",
+            AppEvent::Lint(_) => "lint:event",
+            AppEvent::Settings(_) => "settings:event",
         };
 
         if let Err(e) = self.app_handle.emit(event_name, &event) {
