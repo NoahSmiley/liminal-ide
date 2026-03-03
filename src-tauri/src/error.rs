@@ -9,6 +9,9 @@ pub enum AppError {
     #[error("File system error: {0}")]
     FileSystem(#[from] FsError),
 
+    #[error("Git error: {0}")]
+    Git(#[from] GitError),
+
     #[error("Terminal error: {0}")]
     Terminal(#[from] TermError),
 
@@ -17,6 +20,21 @@ pub enum AppError {
 
     #[error("Project error: {0}")]
     Project(#[from] ProjectError),
+
+    #[error("LSP error: {0}")]
+    Lsp(#[from] LspError),
+
+    #[error("Change error: {0}")]
+    Change(#[from] ChangeError),
+
+    #[error("Settings error: {0}")]
+    Settings(#[from] SettingsError),
+
+    #[error("Search error: {0}")]
+    Search(#[from] SearchError),
+
+    #[error("Debug error: {0}")]
+    Debug(String),
 }
 
 #[derive(Error, Debug)]
@@ -89,6 +107,63 @@ pub enum ProjectError {
 
     #[error("Invalid config: {0}")]
     ConfigInvalid(String),
+}
+
+#[derive(Error, Debug)]
+pub enum LspError {
+    #[error("Failed to spawn LSP server: {0}")]
+    SpawnFailed(String),
+
+    #[error("Server not found: {0}")]
+    ServerNotFound(String),
+
+    #[error("LSP server exited unexpectedly")]
+    ServerExited,
+
+    #[error("Protocol error: {0}")]
+    ProtocolError(String),
+
+    #[error("IO error: {0}")]
+    IoError(String),
+
+    #[error("Request failed: {0}")]
+    RequestFailed(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SearchError {
+    #[error("Invalid search pattern: {0}")]
+    InvalidPattern(String),
+
+    #[error("Search IO error: {0}")]
+    IoError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SettingsError {
+    #[error("Failed to load settings: {0}")]
+    LoadFailed(String),
+
+    #[error("Failed to save settings: {0}")]
+    SaveFailed(String),
+}
+
+#[derive(Error, Debug)]
+pub enum ChangeError {
+    #[error("Turn not found: {0}")]
+    TurnNotFound(String),
+
+    #[error("Revert failed: {0}")]
+    RevertFailed(String),
+}
+
+#[derive(Error, Debug)]
+pub enum GitError {
+    #[error("Not a git repository")]
+    NotARepo,
+
+    #[error("Git error: {0}")]
+    Git(String),
 }
 
 // Tauri commands require Serialize on errors

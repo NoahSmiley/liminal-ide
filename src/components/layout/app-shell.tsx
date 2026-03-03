@@ -1,179 +1,142 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Project } from "../../types/project-types";
+import type { TreeNode } from "../../types/fs-types";
+import type { TodoItem } from "../../types/todo-types";
+import type { StackFrame } from "../../types/debug-types";
 import { StatusBar } from "./status-bar";
 import { InputBar } from "./input-bar";
-import { ConversationStream } from "../conversation/conversation-stream";
-import { FileTree } from "../file-viewer/file-tree";
-import { TerminalPanel } from "../terminal-output/terminal-panel";
-import { TuiPanel } from "../shared/tui-panel";
+import { PanelControlBar } from "./panel-control-bar";
+import { FileTreePanel } from "../file-viewer/file-tree-panel";
+import { PinnedChips } from "../conversation/pinned-chips";
+import { ResizeHandle } from "../shared/resize-handle";
+import { AppPanels } from "./app-panels";
+import { AppShellContent } from "./app-shell-content";
 import { useConversation } from "../../hooks/use-conversation";
 import { useFileTree } from "../../hooks/use-file-tree";
+import { useOpenFiles } from "../../hooks/use-open-files";
+import { useAiFileStream } from "../../hooks/use-ai-file-stream";
 import { useTerminal } from "../../hooks/use-terminal";
+import { useCommands } from "../../hooks/use-commands";
+import { usePanelCommands } from "../../hooks/use-panel-commands";
+import { useInputHandler } from "../../hooks/use-input-handler";
+import { useErrorInterpret } from "../../hooks/use-error-interpret";
+import { useChangeReview } from "../../hooks/use-change-review";
+import { usePinnedContext } from "../../hooks/use-pinned-context";
+import { useLint } from "../../hooks/use-lint";
 import { useUiStore } from "../../stores/ui-store";
+import { useLsp } from "../../hooks/use-lsp";
+import { useLspExtensions } from "../../hooks/use-lsp-extensions";
+import { useAppShellKeys } from "../../hooks/use-app-shell-keys";
+import { useAppShellState } from "../../hooks/use-app-shell-state";
+import { useSettings } from "../../hooks/use-settings";
+import { useSearch } from "../../hooks/use-search";
+import { useTodos } from "../../hooks/use-todos";
+import { useSnippets } from "../../hooks/use-snippets";
+import { usePlugins } from "../../hooks/use-plugins";
+import { useDebugger } from "../../hooks/use-debugger";
+import { useCollab } from "../../hooks/use-collab";
+import { useGit } from "../../hooks/use-git";
+import { useTutorial } from "../../hooks/use-tutorial";
+import { TutorialOverlay } from "../tutorial/tutorial-overlay";
 
 export function AppShell() {
-  const [project, setProject] = useState<Project | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [claudeAvailable, setClaudeAvailable] = useState(false);
-  const [terminalId, setTerminalId] = useState<string | null>(null);
-
-  const { messages, streaming, addUserMessage } = useConversation(sessionId);
-  const { entries, refresh } = useFileTree();
-  const terminal = useTerminal(terminalId);
-  const panels = useUiStore((s) => s.panels);
-  const toggleFileTree = useUiStore((s) => s.toggleFileTree);
-  const toggleTerminal = useUiStore((s) => s.toggleTerminal);
+  const s = useAppShellState();
+  const conv = useConversation(s.sessionId);
+  const { nodes, refresh, expandDir } = useFileTree();
+  const fc = useOpenFiles();
+  const terminal = useTerminal(s.terminalId);
+  const ui = useUiStore();
+  const settingsHook = useSettings();
+  const searchHook = useSearch();
+  const todosHook = useTodos();
+  const snippetsHook = useSnippets();
+  const pluginsHook = usePlugins();
+  const debugHook = useDebugger();
+  const collabHook = useCollab();
+  const gitHook = useGit();
+  const tutorial = useTutorial();
+  const { previews } = useAiFileStream({});
+  const { diagnostics, servers } = useLsp(fc.active?.path ?? null, fc.active?.buffer ?? undefined);
+  const lspExtensions = useLspExtensions(servers, fc.active?.path ?? null, diagnostics);
+  const errorInterpret = useErrorInterpret({ sessionId: s.sessionId, addUserMessage: conv.addUserMessage, markPending: conv.markPending });
+  const changeReview = useChangeReview(s.sessionId);
+  const pinnedCtx = usePinnedContext();
+  const lint = useLint();
 
   useEffect(() => {
-    invoke<boolean>("check_claude_status")
-      .then(setClaudeAvailable)
-      .catch(() => setClaudeAvailable(false));
-  }, []);
+    if (terminal.exited && terminal.exitCode !== null && terminal.exitCode !== 0)
+      errorInterpret.offerInterpretation(terminal.output, terminal.exitCode);
+  }, [terminal.exited, terminal.exitCode]);
+  useEffect(() => { if (s.project) gitHook.refreshStatus(); }, [s.project]);
+  useEffect(() => { invoke<boolean>("check_claude_status").then(s.setClaudeAvailable).catch(() => s.setClaudeAvailable(false)); }, []);
 
-  const handleInput = useCallback(
-    async (input: string) => {
-      try {
-        if (input.startsWith("/")) {
-          const [cmd = "", ...rest] = input.slice(1).split(" ");
-          const args = rest.join(" ");
+  const panelCmd = usePanelCommands({
+    toggleSearch: ui.toggleSearch, toggleGit: ui.toggleGit, toggleTodos: ui.toggleTodos,
+    toggleSnippets: ui.toggleSnippets, togglePlugins: ui.togglePlugins, toggleDebug: ui.toggleDebug,
+    addUserMessage: conv.addUserMessage, collabCreate: collabHook.createRoom, collabJoin: collabHook.joinRoom,
+  });
+  const handleCommand = useCommands({
+    setProject: s.setProject, setSessionId: s.setSessionId, addUserMessage: conv.addUserMessage, refresh,
+    toggleFileTree: ui.toggleFileTree, openFileTree: ui.openFileTree, toggleTerminal: ui.toggleTerminal,
+    currentFilePath: fc.active?.path ?? null, sessionId: s.sessionId, markPending: conv.markPending,
+    onPanelCommand: panelCmd, toggleTutorial: tutorial.toggle,
+  });
+  const closeActiveFile = useCallback(() => { if (fc.activeFile) fc.closeFile(fc.activeFile); }, [fc]);
+  useAppShellKeys({ streaming: conv.streaming, toggleFileTree: ui.toggleFileTree, toggleTerminal: ui.toggleTerminal, toggleMainView: ui.toggleMainView, refresh, closeActiveFile, toggleSearch: ui.toggleSearch });
 
-          switch (cmd) {
-            case "new": {
-              const name = args || "untitled";
-              const p = await invoke<Project>("create_project", {
-                name,
-                path: name,
-              });
-              setProject(p);
-              const session = await invoke<{ id: string }>(
-                "create_session",
-                { projectId: p.id },
-              );
-              setSessionId(session.id);
-              addUserMessage(`project "${name}" created`);
-              refresh();
-              break;
-            }
-            case "open": {
-              if (!args) {
-                addUserMessage("usage: /open <path>");
-                break;
-              }
-              const p = await invoke<Project>("open_project", { path: args });
-              setProject(p);
-              const session = await invoke<{ id: string }>(
-                "create_session",
-                { projectId: p.id },
-              );
-              setSessionId(session.id);
-              addUserMessage(`opened ${args}`);
-              refresh();
-              break;
-            }
-            case "files":
-              toggleFileTree();
-              refresh();
-              break;
-            case "terminal":
-              toggleTerminal();
-              break;
-            case "refresh":
-              refresh();
-              addUserMessage("refreshed");
-              break;
-            case "help":
-              addUserMessage(
-                [
-                  "commands:",
-                  "  /new <name>    create a new project",
-                  "  /open <path>   open an existing project",
-                  "  /files         toggle file tree panel",
-                  "  /terminal      toggle terminal panel",
-                  "  /refresh       refresh file tree",
-                  "  /help          show this help",
-                  "",
-                  "  !<cmd>         run a shell command",
-                  "  anything else  talk to the AI",
-                ].join("\n"),
-              );
-              break;
-            default:
-              addUserMessage(`unknown command: /${cmd}`);
-          }
-          return;
-        }
-
-        if (!sessionId) {
-          addUserMessage("no project open — use /new or /open first");
-          return;
-        }
-
-        if (input.startsWith("!")) {
-          let tid = terminalId;
-          if (!tid) {
-            tid = await invoke<string>("spawn_terminal");
-            setTerminalId(tid);
-            if (!panels.terminalOpen) toggleTerminal();
-          }
-          await invoke("send_terminal_input", {
-            terminalId: tid,
-            input: input.slice(1) + "\n",
-          });
-          return;
-        }
-
-        addUserMessage(input);
-        await invoke("send_message", { sessionId, content: input }).catch(
-          (err: unknown) => addUserMessage(`error: ${String(err)}`),
-        );
-      } catch (err) {
-        addUserMessage(`error: ${String(err)}`);
-      }
-    },
-    [sessionId, terminalId, panels.terminalOpen, addUserMessage, refresh, toggleFileTree, toggleTerminal],
-  );
+  const openFileInEditor = useCallback((path: string) => { fc.openFile(path); ui.setMainView("editor"); }, [fc, ui]);
+  const openFileAt = useCallback((path: string, _line: number) => openFileInEditor(path), [openFileInEditor]);
+  const handleFileSelect = useCallback((node: TreeNode) => { if (!node.is_dir) openFileInEditor(node.path); }, [openFileInEditor]);
+  const handleInput = useInputHandler({
+    sessionId: s.sessionId, terminalId: s.terminalId, terminalOpen: ui.panels.terminalOpen,
+    addUserMessage: conv.addUserMessage, markPending: conv.markPending, handleCommand,
+    toggleTerminal: ui.toggleTerminal, setTerminalId: s.setTerminalId,
+  });
+  const handleFixTodo = useCallback((item: TodoItem) => { handleInput(`fix the ${item.kind} at ${item.path}:${item.line_number}: ${item.text}`); }, [handleInput]);
+  const handleSelectDebugFrame = useCallback((frame: StackFrame) => { if (frame.source_path) openFileAt(frame.source_path, frame.line); }, [openFileAt]);
+  const [sidebarWidth, setSidebarWidth] = useState(192);
+  const handleSidebarResize = useCallback((delta: number) => { setSidebarWidth((w) => Math.min(Math.max(w + delta, 120), Math.floor(window.innerWidth * 0.3))); }, []);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-zinc-200 font-mono text-[13px]">
-      <StatusBar
-        projectName={project?.name ?? null}
-        claudeAvailable={claudeAvailable}
-      />
-      <div className="flex flex-1 overflow-hidden">
-        {panels.fileTreeOpen && (
-          <aside className="w-56 border-r border-zinc-800 overflow-y-auto p-2">
-            <TuiPanel title="files">
-              <FileTree entries={entries} onSelect={() => {}} />
-            </TuiPanel>
-          </aside>
+      <StatusBar projectName={s.project?.name ?? null} claudeAvailable={s.claudeAvailable}
+        fileTreeOpen={ui.panels.fileTreeOpen} gitBranch={gitHook.status?.branch ?? null}
+        collabStatus={collabHook.status} onToggleFileTree={() => { ui.toggleFileTree(); refresh(); }}
+        onToggleSettings={ui.toggleSettings} onToggleTutorial={tutorial.toggle}
+        onCollabShare={() => panelCmd("share", "")} onCollabLeave={collabHook.leave} />
+      <div className="flex flex-1 min-h-0">
+        {ui.panels.fileTreeOpen && (
+          <>
+            <aside style={{ width: sidebarWidth, maxWidth: "30vw" }} className="shrink-0 overflow-y-auto flex flex-col">
+              <FileTreePanel nodes={nodes} onSelect={handleFileSelect} onExpand={expandDir}
+                onCreateFile={(path: string) => fc.createFile(path)} onPinFile={pinnedCtx.pinFile} />
+            </aside>
+            <ResizeHandle onResize={handleSidebarResize} />
+          </>
         )}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4">
-            {messages.length > 0 ? (
-              <ConversationStream messages={messages} streaming={streaming} />
-            ) : (
-              <p className="text-zinc-600 text-[12px]">
-                {project
-                  ? "start a conversation — type below"
-                  : "no project open — type /new <name> or /open <path> to start"}
-              </p>
-            )}
+        <main className="flex-1 flex flex-col min-h-0 min-w-0">
+          <PanelControlBar mainView={ui.mainView} terminalOpen={ui.panels.terminalOpen} onSetView={ui.setMainView} onToggleTerminal={ui.toggleTerminal} />
+          <div className="flex-1 flex flex-col min-h-0">
+            <AppShellContent mainView={ui.mainView} project={s.project} messages={conv.messages} streaming={conv.streaming}
+              pending={conv.pending} previews={previews} fc={fc} lspExtensions={lspExtensions}
+              changeReview={changeReview} lint={lint} setMainView={ui.setMainView}
+              openFileInEditor={openFileInEditor} handleInput={handleInput} handleCommand={handleCommand}
+              onTutorial={tutorial.toggle} />
           </div>
-          {panels.terminalOpen && (
-            <div className="border-t border-zinc-800 p-2">
-              <TuiPanel title="terminal">
-                <TerminalPanel
-                  output={terminal.output}
-                  exited={terminal.exited}
-                  exitCode={terminal.exitCode}
-                />
-              </TuiPanel>
-            </div>
+          <AppPanels panels={ui.panels} terminal={{ output: terminal.output, exited: terminal.exited, exitCode: terminal.exitCode, pendingError: errorInterpret.pendingError, onAcceptInterpret: errorInterpret.acceptInterpretation, onDismissInterpret: errorInterpret.dismissError, onPinOutput: (c) => pinnedCtx.pinText("terminal", c) }}
+            settings={settingsHook} search={searchHook} todos={todosHook} snippets={snippetsHook}
+            plugins={pluginsHook} debugSession={debugHook.session} debugActions={debugHook}
+            onOpenFileAt={openFileAt} onInsertSnippet={() => {}} onFixTodoWithAi={handleFixTodo}
+            onSelectDebugFrame={handleSelectDebugFrame} onClosePanel={ui.closePanel} onToggleSettings={ui.toggleSettings} />
+          {!(ui.mainView === "editor" && fc.active) && (
+            <>
+              <PinnedChips pins={pinnedCtx.pins} onUnpin={pinnedCtx.unpin} />
+              <InputBar onSubmit={handleInput} disabled={conv.streaming} />
+            </>
           )}
         </main>
       </div>
-      <InputBar onSubmit={handleInput} disabled={streaming} />
+      {tutorial.open && <TutorialOverlay tutorial={tutorial} />}
     </div>
   );
 }

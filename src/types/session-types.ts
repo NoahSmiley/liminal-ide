@@ -1,8 +1,11 @@
-export type Role = "user" | "assistant";
+export type Role = "user" | "assistant" | "tool";
 
 export interface Message {
   role: Role;
   content: string;
+  tool_name?: string;
+  tool_id?: string;
+  is_tool_activity?: boolean;
 }
 
 export interface Session {

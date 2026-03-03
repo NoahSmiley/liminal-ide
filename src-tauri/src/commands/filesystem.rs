@@ -1,6 +1,8 @@
 use std::path::Path;
 use tauri::State;
 
+use crate::core::events::{AppEvent, FsEvent};
+use crate::core::filesystem::tree::TreeNode;
 use crate::core::filesystem::{DirEntry, FileContent};
 use crate::error::{AppError, ProjectError};
 use crate::state::AppState;
@@ -47,4 +49,47 @@ pub async fn list_directory(
     let root = require_active_root(&state).await?;
     let entries = state.fs_manager.list_directory(&root, Path::new(&path))?;
     Ok(entries)
+}
+
+#[tauri::command]
+pub async fn rename_file(
+    state: State<'_, AppState>,
+    old_path: String,
+    new_path: String,
+) -> Result<(), AppError> {
+    let root = require_active_root(&state).await?;
+    state.fs_manager.rename_file(&root, Path::new(&old_path), Path::new(&new_path))?;
+    state.event_bus.emit(AppEvent::Fs(FsEvent::FileRenamed {
+        old_path,
+        new_path,
+    }));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_file(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<(), AppError> {
+    let root = require_active_root(&state).await?;
+    state.fs_manager.delete_file(&root, Path::new(&path))?;
+    state.event_bus.emit(AppEvent::Fs(FsEvent::FileDeleted {
+        path,
+    }));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_tree(
+    state: State<'_, AppState>,
+    path: String,
+    depth: Option<usize>,
+) -> Result<Vec<TreeNode>, AppError> {
+    let root = require_active_root(&state).await?;
+    let target = root.join(&path);
+    let nodes = crate::core::filesystem::tree::build_tree(
+        &target,
+        depth.unwrap_or(1),
+    )?;
+    Ok(nodes)
 }

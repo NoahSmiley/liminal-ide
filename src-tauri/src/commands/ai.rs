@@ -1,8 +1,10 @@
+use std::time::Duration;
 use tauri::State;
 use uuid::Uuid;
 
 use crate::core::ai_engine::AiEngine;
-use crate::core::events::{AiEvent, AppEvent};
+use crate::core::events::{AiEvent, AppEvent, LintEvent};
+use crate::core::lint_runner;
 use crate::core::session::{Message, Role};
 use crate::error::AppError;
 use crate::state::AppState;
@@ -13,60 +15,106 @@ pub async fn send_message(
     session_id: Uuid,
     content: String,
 ) -> Result<(), AppError> {
-    // Append user message immediately
     state
         .session_manager
         .append_message(
             session_id,
-            Message {
-                role: Role::User,
-                content: content.clone(),
-            },
+            Message { role: Role::User, content: content.clone() },
         )
         .await
         .map_err(AppError::Session)?;
 
-    // Clone what we need for background task
     let event_bus = state.event_bus.clone();
     let session_manager = state.session_manager.clone();
     let model = state.ai_engine.model().to_string();
+    let project_root = state.project_manager.get_active().await.map(|p| p.root_path);
+    let timeout_secs = state.config.claude_timeout_seconds;
+    let cli_sid = state.cli_session_id.lock().await.clone();
+    let cli_sid_mutex = state.cli_session_id.clone();
+    let change_tracker = state.change_tracker_arc();
+    let pinned_context = match project_root.as_deref() {
+        Some(root) => state.context_pin_manager.build_context_block(root).await,
+        None => String::new(),
+    };
+    let editor_context = state.editor_context_manager.format_for_prompt().await;
 
-    // Spawn AI work in background so command returns immediately
-    tokio::spawn(async move {
-        eprintln!("[liminal] spawning claude for session {}", session_id);
+    let handle = tokio::spawn(async move {
+        eprintln!("[liminal] spawning claude for session {session_id}");
+        change_tracker.begin_turn(session_id).await;
 
-        let result = crate::core::ai_engine::streaming::stream_claude_response(
-            &event_bus,
-            session_id,
-            &content,
-            AiEngine::system_prompt(),
-            &model,
-        )
-        .await;
+        let mut system_prompt = AiEngine::system_prompt(project_root.as_deref(), &pinned_context);
+        if !editor_context.is_empty() {
+            system_prompt.push_str(&editor_context);
+        }
+        let future = crate::core::ai_engine::streaming::stream_claude_response(
+            &event_bus, session_id, &content, &system_prompt,
+            &model, cli_sid.as_deref(), project_root.as_deref(), &change_tracker,
+        );
+
+        let result = tokio::time::timeout(Duration::from_secs(timeout_secs), future).await;
+        let had_changes;
 
         match result {
-            Ok(response) => {
-                eprintln!("[liminal] claude responded ({} chars)", response.len());
+            Ok(Ok(sr)) => {
+                eprintln!("[liminal] claude responded ({} chars)", sr.text.len());
+                if let Some(sid) = sr.cli_session_id {
+                    *cli_sid_mutex.lock().await = Some(sid);
+                }
                 let _ = session_manager
-                    .append_message(
-                        session_id,
-                        Message {
-                            role: Role::Assistant,
-                            content: response,
-                        },
-                    )
+                    .append_message(session_id, Message { role: Role::Assistant, content: sr.text })
                     .await;
+                let turn = change_tracker.complete_turn().await;
+                had_changes = turn.map(|t| !t.changes.is_empty()).unwrap_or(false);
             }
-            Err(e) => {
-                eprintln!("[liminal] claude error: {}", e);
+            Ok(Err(e)) => {
+                eprintln!("[liminal] claude error: {e}");
+                event_bus.emit(AppEvent::Ai(AiEvent::Error { session_id, message: e.to_string() }));
+                event_bus.emit(AppEvent::Ai(AiEvent::TurnComplete { session_id }));
+                change_tracker.complete_turn().await;
+                had_changes = false;
+            }
+            Err(_) => {
+                eprintln!("[liminal] claude timed out after {timeout_secs}s");
                 event_bus.emit(AppEvent::Ai(AiEvent::Error {
-                    session_id,
-                    message: e.to_string(),
+                    session_id, message: format!("Request timed out after {timeout_secs}s"),
                 }));
+                event_bus.emit(AppEvent::Ai(AiEvent::TurnComplete { session_id }));
+                change_tracker.complete_turn().await;
+                had_changes = false;
+            }
+        }
+
+        // Auto-lint after turns with file changes
+        if had_changes {
+            if let Some(root) = &project_root {
+                run_lint_silently(&event_bus, root);
             }
         }
     });
 
+    let mut task = state.active_ai_task.lock().await;
+    *task = Some(handle);
+    Ok(())
+}
+
+fn run_lint_silently(event_bus: &crate::core::events::EventBus, root: &std::path::Path) {
+    if let Some(cmd) = lint_runner::detect_lint_command(root) {
+        event_bus.emit(AppEvent::Lint(LintEvent::Started { command: cmd.clone() }));
+        if let Some(result) = lint_runner::run_lint(root) {
+            event_bus.emit(AppEvent::Lint(LintEvent::Complete {
+                success: result.success, output: result.output, command: result.command,
+            }));
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn cancel_message(state: State<'_, AppState>) -> Result<(), AppError> {
+    let mut task = state.active_ai_task.lock().await;
+    if let Some(handle) = task.take() {
+        handle.abort();
+        eprintln!("[liminal] cancelled active AI task");
+    }
     Ok(())
 }
 

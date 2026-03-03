@@ -72,7 +72,8 @@ impl TerminalManager {
                         break;
                     }
                     Ok(n) => {
-                        let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                        let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+                        let data = strip_ansi(&raw);
                         event_bus.emit(AppEvent::Terminal(TerminalEvent::Output {
                             terminal_id: tid,
                             data,
@@ -107,9 +108,51 @@ impl TerminalManager {
         Ok(())
     }
 
+    pub async fn list(&self) -> Vec<Uuid> {
+        self.terminals.lock().await.keys().copied().collect()
+    }
+
     pub async fn kill(&self, terminal_id: Uuid) -> Result<(), TermError> {
         let mut terminals = self.terminals.lock().await;
         terminals.remove(&terminal_id);
         Ok(())
     }
+}
+
+fn strip_ansi(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == b'\x1b' {
+            i += 1;
+            if i < bytes.len() && bytes[i] == b'[' {
+                // CSI sequence: skip until letter
+                i += 1;
+                while i < bytes.len() && !(bytes[i].is_ascii_alphabetic() || bytes[i] == b'@') {
+                    i += 1;
+                }
+                if i < bytes.len() { i += 1; }
+            } else if i < bytes.len() && bytes[i] == b']' {
+                // OSC sequence: skip until BEL or ST
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'\x07' {
+                    if bytes[i] == b'\x1b' && i + 1 < bytes.len() && bytes[i + 1] == b'\\' {
+                        i += 2;
+                        break;
+                    }
+                    i += 1;
+                }
+                if i < bytes.len() && bytes[i] == b'\x07' { i += 1; }
+            }
+        } else if bytes[i] == b'\r' {
+            i += 1;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+
+    String::from_utf8_lossy(&out).to_string()
 }
