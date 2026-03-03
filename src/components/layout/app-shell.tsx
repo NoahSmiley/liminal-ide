@@ -104,6 +104,7 @@ export function AppShell() {
         fileTreeOpen={ui.panels.fileTreeOpen} gitBranch={gitHook.status?.branch ?? null}
         model={settingsHook.settings?.model ?? "sonnet"} collabStatus={collabHook.status}
         onToggleFileTree={() => { ui.toggleFileTree(); refresh(); }}
+        onGoHome={() => { s.setProject(null); s.setSessionId(null); s.setInitialMessages([]); s.refreshProjects(); }}
         onSwitchProject={(id) => handleCommand("switch", id)} onModelChange={(m) => settingsHook.update({ model: m })}
         onToggleSettings={ui.toggleSettings} onToggleTutorial={tutorial.toggle}
         onCollabShare={() => panelCmd("share", "")} onCollabLeave={collabHook.leave} />

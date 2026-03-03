@@ -39,7 +39,8 @@ export function WelcomeScreen({ onCommand, onTutorial }: WelcomeScreenProps) {
     setInput(null);
   };
 
-  const shortenPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");
+  const shortenPath = (path: string) =>
+    path.replace(/^[A-Z]:\\Users\\[^\\]+/i, "~").replace(/^\/Users\/[^/]+/, "~");
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-10 py-12">

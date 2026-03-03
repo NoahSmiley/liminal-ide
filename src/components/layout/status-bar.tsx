@@ -15,6 +15,7 @@ interface StatusBarProps {
   model: string;
   collabStatus: CollabStatus;
   onToggleFileTree: () => void;
+  onGoHome: () => void;
   onSwitchProject: (id: string) => void;
   onModelChange: (model: string) => void;
   onToggleSettings: () => void;
@@ -25,7 +26,7 @@ interface StatusBarProps {
 
 export function StatusBar({
   projects, currentProjectId, claudeAvailable, fileTreeOpen, gitBranch, model,
-  collabStatus, onToggleFileTree, onSwitchProject, onModelChange, onToggleSettings, onToggleTutorial,
+  collabStatus, onToggleFileTree, onGoHome, onSwitchProject, onModelChange, onToggleSettings, onToggleTutorial,
   onCollabShare, onCollabLeave,
 }: StatusBarProps) {
   const statusDot = claudeAvailable ? "\u25cf" : "\u25cb";
@@ -44,7 +45,9 @@ export function StatusBar({
         >
           {"\u2261"}
         </button>
-        <LiminalLogo size={26} className="opacity-80" />
+        <button onClick={onGoHome} title="home" className="opacity-80 hover:opacity-100 transition-opacity">
+          <LiminalLogo size={26} />
+        </button>
         <ProjectSwitcher projects={projects} currentProjectId={currentProjectId} onSwitch={onSwitchProject} />
         {gitBranch && (
           <span className="text-[13px] text-zinc-600">{gitBranch}</span>

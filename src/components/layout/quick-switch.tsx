@@ -50,7 +50,8 @@ export function QuickSwitch({ projects, onSwitch, onClose }: QuickSwitchProps) {
     if (e.key === "Enter" && flatList[selectedIdx]) { handleSelect(flatList[selectedIdx].id); }
   }, [flatList, selectedIdx, onClose, handleSelect]);
 
-  const shortenPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");
+  const shortenPath = (path: string) =>
+    path.replace(/^[A-Z]:\\Users\\[^\\]+/i, "~").replace(/^\/Users\/[^/]+/, "~");
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center pt-[20vh]" onClick={onClose}>
