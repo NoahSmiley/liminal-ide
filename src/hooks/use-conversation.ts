@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AiEvent } from "../types/ai-types";
 import type { Message } from "../types/session-types";
 import { useTauriEvent } from "./use-tauri-event";
@@ -8,10 +8,20 @@ interface AiEventPayload {
   payload: AiEvent;
 }
 
-export function useConversation(sessionId: string | null) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function useConversation(sessionId: string | null, initialMessages?: Message[]) {
+  const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [streaming, setStreaming] = useState(false);
   const [pending, setPending] = useState(false);
+  const prevSessionId = useRef(sessionId);
+
+  useEffect(() => {
+    if (prevSessionId.current !== sessionId) {
+      setMessages(initialMessages ?? []);
+      setStreaming(false);
+      setPending(false);
+      prevSessionId.current = sessionId;
+    }
+  }, [sessionId, initialMessages]);
 
   const handleAiEvent = useCallback(
     (event: AiEventPayload) => {

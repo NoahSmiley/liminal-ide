@@ -12,6 +12,8 @@ export interface Session {
   id: string;
   project_id: string;
   messages: Message[];
+  cli_session_id?: string | null;
+  updated_at?: number;
 }
 
 export interface SessionSummary {

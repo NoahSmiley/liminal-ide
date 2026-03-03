@@ -41,7 +41,6 @@ pub struct AppState {
     change_tracker: Arc<ChangeTracker>,
     pub active_ai_task: Mutex<Option<JoinHandle<()>>>,
     pub file_watcher: Mutex<Option<WatcherHandle>>,
-    pub cli_session_id: Arc<Mutex<Option<String>>>,
 }
 
 impl AppState {
@@ -73,7 +72,6 @@ impl AppState {
             change_tracker: Arc::new(ChangeTracker::new()),
             active_ai_task: Mutex::new(None),
             file_watcher: Mutex::new(None),
-            cli_session_id: Arc::new(Mutex::new(None)),
         }
     }
 

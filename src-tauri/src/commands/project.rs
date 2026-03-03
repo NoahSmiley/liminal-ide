@@ -40,7 +40,6 @@ pub async fn open_project(
         .open_project(resolve_path(&path))
         .await?;
     start_watcher(&state, &project.root_path).await;
-    *state.cli_session_id.lock().await = None;
     Ok(project)
 }
 
@@ -76,4 +75,27 @@ pub async fn get_active_project(
 ) -> Result<Option<Project>, AppError> {
     let project = state.project_manager.get_active().await;
     Ok(project)
+}
+
+#[tauri::command]
+pub async fn switch_project(
+    state: State<'_, AppState>,
+    project_id: Uuid,
+) -> Result<Project, AppError> {
+    let project = state.project_manager.switch_to(project_id).await?;
+    start_watcher(&state, &project.root_path).await;
+    Ok(project)
+}
+
+#[tauri::command]
+pub async fn update_project_workspace(
+    state: State<'_, AppState>,
+    project_id: Uuid,
+    workspace: Option<String>,
+) -> Result<(), AppError> {
+    state
+        .project_manager
+        .set_workspace(project_id, workspace)
+        .await?;
+    Ok(())
 }

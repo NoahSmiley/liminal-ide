@@ -1,17 +1,22 @@
 import { useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Project } from "../types/project-types";
+import type { Message, Session } from "../types/session-types";
+import { HELP_TEXT } from "../lib/help-text";
 
 interface CommandHandlers {
   setProject: (p: Project) => void;
   setSessionId: (id: string) => void;
+  setInitialMessages: (msgs: Message[]) => void;
   addUserMessage: (msg: string) => void;
   refresh: () => void;
+  refreshProjects: () => void;
   toggleFileTree: () => void;
   openFileTree: () => void;
   toggleTerminal: () => void;
   currentFilePath?: string | null;
   sessionId?: string | null;
+  projectId?: string | null;
   markPending?: () => void;
   onPanelCommand?: (cmd: string, args: string) => Promise<boolean>;
   toggleTutorial?: () => void;
@@ -19,9 +24,9 @@ interface CommandHandlers {
 
 export function useCommands(handlers: CommandHandlers) {
   const {
-    setProject, setSessionId, addUserMessage, refresh,
+    setProject, setSessionId, setInitialMessages, addUserMessage, refresh, refreshProjects,
     toggleFileTree, openFileTree, toggleTerminal,
-    currentFilePath, sessionId, markPending, onPanelCommand, toggleTutorial,
+    currentFilePath, sessionId, projectId, markPending, onPanelCommand, toggleTutorial,
   } = handlers;
 
   const sendToAi = useCallback(
@@ -36,6 +41,16 @@ export function useCommands(handlers: CommandHandlers) {
     [sessionId, addUserMessage, markPending],
   );
 
+  const restoreSession = useCallback(
+    async (project: Project) => {
+      const session = await invoke<Session>("get_or_create_session", { projectId: project.id });
+      setSessionId(session.id);
+      setInitialMessages(session.messages ?? []);
+      return session;
+    },
+    [setSessionId, setInitialMessages],
+  );
+
   const handleCommand = useCallback(
     async (cmd: string, args: string) => {
       if (onPanelCommand) {
@@ -48,26 +63,48 @@ export function useCommands(handlers: CommandHandlers) {
           const name = args || "untitled";
           const p = await invoke<Project>("create_project", { name, path: name });
           setProject(p);
-          const session = await invoke<{ id: string }>("create_session", { projectId: p.id });
-          setSessionId(session.id);
+          await restoreSession(p);
           addUserMessage(`project "${name}" created`);
           openFileTree();
           refresh();
+          refreshProjects();
           break;
         }
         case "open": {
           if (!args) { addUserMessage("usage: /open <path>"); break; }
           const p = await invoke<Project>("open_project", { path: args });
           setProject(p);
-          const session = await invoke<{ id: string }>("create_session", { projectId: p.id });
-          setSessionId(session.id);
-          addUserMessage(`opened ${args}`);
+          const session = await restoreSession(p);
+          const isFresh = !session.messages || session.messages.length === 0;
+          addUserMessage(isFresh ? `opened ${args}` : `resumed ${args}`);
           openFileTree();
           refresh();
-          markPending?.();
-          invoke("summarize_project", { sessionId: session.id }).catch(
-            (err: unknown) => addUserMessage(`summary error: ${String(err)}`),
-          );
+          refreshProjects();
+          if (isFresh) {
+            markPending?.();
+            invoke("summarize_project", { sessionId: session.id }).catch(
+              (err: unknown) => addUserMessage(`summary error: ${String(err)}`),
+            );
+          }
+          break;
+        }
+        case "switch": {
+          if (!args) { addUserMessage("usage: /switch <project-id>"); break; }
+          const p = await invoke<Project>("switch_project", { projectId: args });
+          setProject(p);
+          const session = await restoreSession(p);
+          const isFresh = !session.messages || session.messages.length === 0;
+          addUserMessage(isFresh ? `switched to ${p.name}` : `resumed ${p.name}`);
+          openFileTree();
+          refresh();
+          break;
+        }
+        case "workspace": {
+          if (!projectId) { addUserMessage("no project open"); break; }
+          const ws = args.trim() || null;
+          await invoke("update_project_workspace", { projectId, workspace: ws });
+          addUserMessage(ws ? `workspace set to "${ws}"` : "workspace cleared");
+          refreshProjects();
           break;
         }
         case "files": toggleFileTree(); refresh(); break;
@@ -97,38 +134,8 @@ export function useCommands(handlers: CommandHandlers) {
           addUserMessage(`unknown command: /${cmd}`);
       }
     },
-    [setProject, setSessionId, addUserMessage, refresh, toggleFileTree, openFileTree, toggleTerminal, sendToAi, currentFilePath, onPanelCommand, toggleTutorial],
+    [setProject, setSessionId, addUserMessage, refresh, refreshProjects, toggleFileTree, openFileTree, toggleTerminal, sendToAi, currentFilePath, projectId, onPanelCommand, toggleTutorial, restoreSession],
   );
 
   return handleCommand;
 }
-
-const HELP_TEXT = [
-  "commands:",
-  "  /new <name>    create a new project",
-  "  /open <path>   open an existing project",
-  "  /files         toggle file tree panel",
-  "  /terminal      toggle terminal panel",
-  "  /search        toggle search panel (⌘⇧F)",
-  "  /git           toggle git panel",
-  "  /todos         toggle TODO panel",
-  "  /snippets      toggle snippet library",
-  "  /plugins       toggle plugin panel",
-  "  /debug         toggle debug panel",
-  "  /share [url]   start collab session",
-  "  /join <url> <room>  join collab session",
-  "  /refresh       refresh file tree",
-  "  /commit [msg]  commit changes",
-  "  /diff          show git diff",
-  "  /status        show git status",
-  "  /pr [desc]     create pull request",
-  "  /log           show git log",
-  "  /review        AI code review",
-  "  /summary       summarize project",
-  "  /tutorial      interactive tutorial",
-  "  /help          show this help",
-  "",
-  "  !<cmd>         run a shell command",
-  "  !!<query>      natural language -> command",
-  "  anything else  talk to the AI",
-].join("\n");

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -97,6 +97,7 @@ async fn process_stream(
     let mut emitted_thinking = false;
     let mut seen_tools: HashSet<String> = HashSet::new();
     let mut cli_session_id: Option<String> = None;
+    let mut file_snapshots: HashMap<String, Option<String>> = HashMap::new();
 
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() { continue; }
@@ -107,6 +108,7 @@ async fn process_stream(
                     event_bus, session_id, &message.content,
                     &mut full_text, &mut last_len,
                     &mut emitted_thinking, &mut seen_tools,
+                    project_root, &mut file_snapshots,
                 );
             }
             Ok(ClaudeStreamEvent::User { message, tool_use_result }) => {
@@ -115,6 +117,7 @@ async fn process_stream(
                 handle_user(
                     event_bus, session_id, &message.content,
                     parsed.as_ref(), project_root, change_tracker,
+                    &mut file_snapshots,
                 ).await;
                 last_len = 0;
             }

@@ -1,14 +1,22 @@
 import { LiminalLogo } from "../shared/liminal-logo";
 import { CollabIndicator } from "./collab-indicator";
+import { WindowControls } from "./window-controls";
+import { ModelSelector } from "./model-selector";
+import { ProjectSwitcher } from "./project-switcher";
 import type { CollabStatus } from "../../types/collab-types";
+import type { ProjectSummary } from "../../types/project-types";
 
 interface StatusBarProps {
-  projectName: string | null;
+  projects: ProjectSummary[];
+  currentProjectId: string | null;
   claudeAvailable: boolean;
   fileTreeOpen: boolean;
   gitBranch: string | null;
+  model: string;
   collabStatus: CollabStatus;
   onToggleFileTree: () => void;
+  onSwitchProject: (id: string) => void;
+  onModelChange: (model: string) => void;
   onToggleSettings: () => void;
   onToggleTutorial: () => void;
   onCollabShare: () => void;
@@ -16,51 +24,56 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
-  projectName, claudeAvailable, fileTreeOpen, gitBranch,
-  collabStatus, onToggleFileTree, onToggleSettings, onToggleTutorial,
+  projects, currentProjectId, claudeAvailable, fileTreeOpen, gitBranch, model,
+  collabStatus, onToggleFileTree, onSwitchProject, onModelChange, onToggleSettings, onToggleTutorial,
   onCollabShare, onCollabLeave,
 }: StatusBarProps) {
-  const path = projectName ? `~/${projectName}` : "~";
-  const status = claudeAvailable ? "\u25cf" : "\u25cb";
-  const statusColor = claudeAvailable ? "text-emerald-500" : "text-zinc-700";
+  const statusDot = claudeAvailable ? "\u25cf" : "\u25cb";
+  const statusColor = claudeAvailable ? "text-emerald-400" : "text-zinc-600";
 
   return (
-    <div data-tutorial="status-bar" className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800/40 text-[11px]">
-      <span className="flex items-center gap-2 text-zinc-500">
+    <div data-tauri-drag-region data-tutorial="status-bar"
+      className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/50">
+      <div className="flex items-center gap-3">
         <button
           onClick={onToggleFileTree}
-          title="files (\u2318B)"
-          className={`text-[12px] leading-none transition-colors ${
+          title="files"
+          className={`text-[20px] leading-none transition-colors ${
             fileTreeOpen ? "text-zinc-300" : "text-zinc-600 hover:text-zinc-400"
           }`}
         >
-          \u2261
+          {"\u2261"}
         </button>
-        <LiminalLogo size={12} className="opacity-40" />
-        <span className="text-zinc-500">{path}</span>
+        <LiminalLogo size={26} className="opacity-80" />
+        <ProjectSwitcher projects={projects} currentProjectId={currentProjectId} onSwitch={onSwitchProject} />
         {gitBranch && (
-          <span className="text-zinc-600 text-[10px]">{gitBranch}</span>
+          <span className="text-[13px] text-zinc-600">{gitBranch}</span>
         )}
-      </span>
-      <span className="flex items-center gap-2">
+      </div>
+      <div className="flex items-center gap-4">
         <CollabIndicator status={collabStatus} onShare={onCollabShare} onLeave={onCollabLeave} />
-        <span className={`text-[8px] ${statusColor}`}>{status}</span>
-        <span className="text-zinc-600">claude</span>
-        <button
-          onClick={onToggleTutorial}
-          title="tutorial"
-          className="text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          ?
-        </button>
-        <button
-          onClick={onToggleSettings}
-          title="settings (\u2318,)"
-          className="text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          *
-        </button>
-      </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-[11px] ${statusColor}`}>{statusDot}</span>
+          <ModelSelector model={model} onSelect={onModelChange} />
+        </div>
+        <div className="flex items-center gap-2 border-l border-zinc-800/50 pl-4">
+          <button
+            onClick={onToggleTutorial}
+            title="tutorial"
+            className="px-2 py-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+          >
+            help
+          </button>
+          <button
+            onClick={onToggleSettings}
+            title="settings"
+            className="px-2 py-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+          >
+            config
+          </button>
+        </div>
+        <WindowControls />
+      </div>
     </div>
   );
 }

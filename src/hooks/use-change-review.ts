@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { FileChange } from "../types/change-types";
+import type { FileChange, FileReviewStatus } from "../types/change-types";
 import type { AiEvent } from "../types/ai-types";
 import type { FsEvent } from "../types/fs-types";
 import { useTauriEvent } from "./use-tauri-event";
@@ -11,7 +11,6 @@ interface AiEventPayload { type: "Ai"; payload: AiEvent }
 export interface TurnChanges {
   turnId: string;
   changes: FileChange[];
-  accepted: boolean;
 }
 
 export function useChangeReview(sessionId: string | null) {
@@ -25,6 +24,7 @@ export function useChangeReview(sessionId: string | null) {
       pendingChanges.current.push({
         path, before, after,
         change_type: before === null ? "created" : "modified",
+        status: "pending",
       });
     }
   });
@@ -37,25 +37,78 @@ export function useChangeReview(sessionId: string | null) {
     const turnId = `turn-${++turnCounter.current}`;
     const changes = [...pendingChanges.current];
     pendingChanges.current = [];
-    setTurns((prev) => [...prev, { turnId, changes, accepted: false }]);
+    setTurns((prev) => [...prev, { turnId, changes }]);
   });
 
-  const acceptTurn = useCallback((turnId: string) => {
-    setTurns((prev) =>
-      prev.map((t) => (t.turnId === turnId ? { ...t, accepted: true } : t)),
-    );
-  }, []);
+  const updateFileStatus = useCallback(
+    (turnId: string, path: string, status: FileReviewStatus) => {
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.turnId === turnId
+            ? { ...t, changes: t.changes.map((c) => (c.path === path ? { ...c, status } : c)) }
+            : t,
+        ),
+      );
+    },
+    [],
+  );
 
-  const revertTurn = useCallback(async (turnId: string) => {
-    const turn = turns.find((t) => t.turnId === turnId);
-    if (!turn) return;
-    for (const change of turn.changes) {
-      if (change.before !== null) {
-        await invoke("write_file", { path: change.path, content: change.before });
-      }
-    }
-    setTurns((prev) => prev.filter((t) => t.turnId !== turnId));
-  }, [turns]);
+  const acceptFile = useCallback(
+    (turnId: string, path: string) => updateFileStatus(turnId, path, "accepted"),
+    [updateFileStatus],
+  );
 
-  return { turns, acceptTurn, revertTurn };
+  const rejectFile = useCallback(
+    (turnId: string, path: string) => {
+      setTurns((prev) => {
+        const turn = prev.find((t) => t.turnId === turnId);
+        const change = turn?.changes.find((c) => c.path === path);
+        if (change?.before !== null && change?.before !== undefined) {
+          invoke("write_file", { path: change.path, content: change.before });
+        }
+        return prev.map((t) =>
+          t.turnId === turnId
+            ? { ...t, changes: t.changes.map((c) => (c.path === path ? { ...c, status: "rejected" as const } : c)) }
+            : t,
+        );
+      });
+    },
+    [],
+  );
+
+  const acceptAllFiles = useCallback(
+    (turnId: string) => {
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.turnId === turnId
+            ? { ...t, changes: t.changes.map((c) => c.status === "pending" ? { ...c, status: "accepted" as const } : c) }
+            : t,
+        ),
+      );
+    },
+    [],
+  );
+
+  const rejectAllFiles = useCallback(
+    (turnId: string) => {
+      setTurns((prev) => {
+        const turn = prev.find((t) => t.turnId === turnId);
+        if (turn) {
+          for (const change of turn.changes) {
+            if (change.status === "pending" && change.before !== null) {
+              invoke("write_file", { path: change.path, content: change.before });
+            }
+          }
+        }
+        return prev.map((t) =>
+          t.turnId === turnId
+            ? { ...t, changes: t.changes.map((c) => c.status === "pending" ? { ...c, status: "rejected" as const } : c) }
+            : t,
+        );
+      });
+    },
+    [],
+  );
+
+  return { turns, acceptFile, rejectFile, acceptAllFiles, rejectAllFiles };
 }

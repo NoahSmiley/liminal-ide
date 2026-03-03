@@ -5,18 +5,22 @@ import { baseExtensions } from "../../lib/codemirror/setup";
 import { getLanguageLoader } from "../../lib/codemirror/languages";
 import type { FilePreview } from "../../hooks/use-ai-file-stream";
 
-const previewTheme = EditorView.theme({
-  "&": { fontSize: "11px" },
-  ".cm-scroller": { overflow: "hidden !important" },
-  ".cm-gutters": { display: "none" },
+const panelTheme = EditorView.theme({
+  "&": { height: "100%", fontSize: "11px" },
+  ".cm-scroller": { overflow: "auto !important" },
   ".cm-content": { padding: "4px 0" },
 });
 
-interface InlinePreviewProps {
+interface FilePreviewPanelProps {
   preview: FilePreview;
 }
 
-export function InlinePreview({ preview }: InlinePreviewProps) {
+function extractFilename(path: string): string {
+  const sep = path.includes("\\") ? "\\" : "/";
+  return path.split(sep).pop() ?? path;
+}
+
+export function FilePreviewPanel({ preview }: FilePreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const langComp = useRef(new Compartment());
@@ -29,7 +33,7 @@ export function InlinePreview({ preview }: InlinePreviewProps) {
       doc: preview.visibleContent,
       extensions: [
         ...baseExtensions(),
-        previewTheme,
+        panelTheme,
         lComp.of([]),
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
@@ -67,13 +71,15 @@ export function InlinePreview({ preview }: InlinePreviewProps) {
   }, [preview.visibleContent]);
 
   return (
-    <div className="mt-1 ml-6 border border-zinc-800 overflow-hidden">
-      {!preview.done && (
-        <div className="flex items-center px-2 py-0.5 text-[9px] text-cyan-400 bg-zinc-950 border-b border-zinc-800">
-          <span className="animate-pulse">writing...</span>
-        </div>
-      )}
-      <div ref={containerRef} />
+    <div className="flex flex-col h-full border-l border-zinc-800">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800 bg-zinc-950 text-[10px]">
+        <span className="text-zinc-400 truncate">{extractFilename(preview.path)}</span>
+        {!preview.done && <span className="text-cyan-400 animate-pulse">writing...</span>}
+      </div>
+      <div className="px-3 py-0.5 text-[9px] text-zinc-600 truncate border-b border-zinc-800/40 bg-zinc-950">
+        {preview.path}
+      </div>
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
     </div>
   );
 }

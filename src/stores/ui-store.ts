@@ -12,6 +12,7 @@ interface PanelState {
   snippetsOpen: boolean;
   pluginsOpen: boolean;
   debugOpen: boolean;
+  quickSwitchOpen: boolean;
 }
 
 interface UiState {
@@ -27,6 +28,7 @@ interface UiState {
   toggleSnippets: () => void;
   togglePlugins: () => void;
   toggleDebug: () => void;
+  toggleQuickSwitch: () => void;
   closePanel: (panel: string) => void;
   setMainView: (view: MainView) => void;
   toggleMainView: () => void;
@@ -47,6 +49,7 @@ export const useUiStore = create<UiState>((set) => ({
     snippetsOpen: false,
     pluginsOpen: false,
     debugOpen: false,
+    quickSwitchOpen: false,
   },
   mainView: "chat",
   toggleFileTree: () => set(toggle("fileTreeOpen")),
@@ -59,6 +62,7 @@ export const useUiStore = create<UiState>((set) => ({
   toggleSnippets: () => set(toggle("snippetsOpen")),
   togglePlugins: () => set(toggle("pluginsOpen")),
   toggleDebug: () => set(toggle("debugOpen")),
+  toggleQuickSwitch: () => set(toggle("quickSwitchOpen")),
   closePanel: (panel) => set((s) => (panel in s.panels ? { panels: { ...s.panels, [panel]: false } } : s)),
   setMainView: (view) => set({ mainView: view }),
   toggleMainView: () =>

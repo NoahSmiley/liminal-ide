@@ -23,6 +23,7 @@ interface AiFileStreamOpts {
 
 export function useAiFileStream({ onFileReady }: AiFileStreamOpts) {
   const [previews, setPreviews] = useState<Map<string, FilePreview>>(new Map());
+  const [latestPath, setLatestPath] = useState<string | null>(null);
   const animationsRef = useRef<Map<string, number>>(new Map());
   const onFileReadyRef = useRef(onFileReady);
   onFileReadyRef.current = onFileReady;
@@ -36,7 +37,7 @@ export function useAiFileStream({ onFileReady }: AiFileStreamOpts) {
     const charsPerFrame = Math.max(MIN_CHARS_PER_FRAME, Math.ceil(content.length / frames));
     let pos = 0;
 
-    // Initialize preview
+    setLatestPath(path);
     setPreviews((prev) => {
       const next = new Map(prev);
       next.set(path, { path, fullContent: content, visibleContent: "", done: false });
@@ -92,7 +93,10 @@ export function useAiFileStream({ onFileReady }: AiFileStreamOpts) {
     }
     animationsRef.current.clear();
     setPreviews(new Map());
+    setLatestPath(null);
   }, []);
 
-  return { previews, clearPreviews };
+  const latestPreview = latestPath ? previews.get(latestPath) ?? null : null;
+
+  return { previews, clearPreviews, latestPreview };
 }

@@ -1,4 +1,5 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::core::change_tracker::{snapshot, ChangeTracker, ChangeType, FileChange};
@@ -14,6 +15,8 @@ pub fn handle_assistant(
     last_len: &mut usize,
     emitted_thinking: &mut bool,
     seen_tools: &mut HashSet<String>,
+    project_root: Option<&Path>,
+    file_snapshots: &mut HashMap<String, Option<String>>,
 ) {
     if !*emitted_thinking && content.iter().any(|b| matches!(b, ContentBlock::Thinking { .. })) {
         *emitted_thinking = true;
@@ -35,6 +38,11 @@ pub fn handle_assistant(
     for block in content {
         if let ContentBlock::ToolUse { id, name, input } = block {
             if seen_tools.insert(id.clone()) {
+                if let Some(path) = input.get("file_path").and_then(|v| v.as_str()) {
+                    file_snapshots.entry(path.to_string()).or_insert_with(|| {
+                        project_root.and_then(|root| snapshot::read_before(root, path))
+                    });
+                }
                 event_bus.emit(AppEvent::Ai(AiEvent::ToolUse {
                     session_id, tool_id: id.clone(), name: name.clone(), input: input.to_string(),
                 }));
@@ -48,8 +56,9 @@ pub async fn handle_user(
     session_id: Uuid,
     content: &[UserContentBlock],
     result: Option<&ToolUseResult>,
-    project_root: Option<&std::path::Path>,
+    _project_root: Option<&Path>,
     change_tracker: &ChangeTracker,
+    file_snapshots: &mut HashMap<String, Option<String>>,
 ) {
     let tool_id = content.iter().find_map(|b| match b {
         UserContentBlock::ToolResult { tool_use_id } => Some(tool_use_id.clone()),
@@ -59,10 +68,9 @@ pub async fn handle_user(
     if let Some(r) = result {
         match r {
             ToolUseResult::Create { file_path, content } => {
-                let before = project_root
-                    .and_then(|root| snapshot::read_before(root, file_path));
+                file_snapshots.remove(file_path);
                 record_and_emit_change(
-                    event_bus, change_tracker, file_path, before,
+                    event_bus, change_tracker, file_path, None,
                     content.clone(), ChangeType::Created,
                 ).await;
                 event_bus.emit(AppEvent::Fs(FsEvent::FileCreated {
@@ -71,8 +79,7 @@ pub async fn handle_user(
             }
             ToolUseResult::Update { file_path, content } => {
                 if let Some(c) = content {
-                    let before = project_root
-                        .and_then(|root| snapshot::read_before(root, file_path));
+                    let before = file_snapshots.remove(file_path).flatten();
                     record_and_emit_change(
                         event_bus, change_tracker, file_path, before,
                         c.clone(), ChangeType::Modified,

@@ -31,3 +31,15 @@ pub async fn list_sessions(
     let sessions = state.session_manager.list_sessions(project_id).await;
     Ok(sessions)
 }
+
+#[tauri::command]
+pub async fn get_or_create_session(
+    state: State<'_, AppState>,
+    project_id: Uuid,
+) -> Result<Session, AppError> {
+    if let Some(session) = state.session_manager.find_latest_for_project(project_id).await {
+        return Ok(session);
+    }
+    let session = state.session_manager.create_session(project_id).await;
+    Ok(session)
+}

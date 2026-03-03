@@ -13,6 +13,8 @@ pub struct Project {
     pub id: Uuid,
     pub name: String,
     pub root_path: PathBuf,
+    #[serde(default)]
+    pub workspace: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -20,6 +22,7 @@ pub struct ProjectSummary {
     pub id: Uuid,
     pub name: String,
     pub root_path: String,
+    pub workspace: Option<String>,
 }
 
 pub struct ProjectManager {
@@ -70,6 +73,7 @@ impl ProjectManager {
             id: Uuid::new_v4(),
             name,
             root_path: path,
+            workspace: None,
         };
 
         let mut projects = self.projects.lock().await;
@@ -131,6 +135,34 @@ impl ProjectManager {
         Ok(())
     }
 
+    pub async fn switch_to(&self, id: Uuid) -> Result<Project, ProjectError> {
+        let projects = self.projects.lock().await;
+        let project = projects
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| ProjectError::NotFound(id.to_string()))?;
+        drop(projects);
+        let mut active = self.active_project.lock().await;
+        *active = Some(id);
+        Ok(project)
+    }
+
+    pub async fn set_workspace(
+        &self,
+        id: Uuid,
+        workspace: Option<String>,
+    ) -> Result<(), ProjectError> {
+        let mut projects = self.projects.lock().await;
+        let project = projects
+            .get_mut(&id)
+            .ok_or_else(|| ProjectError::NotFound(id.to_string()))?;
+        project.workspace = workspace;
+        if let Some(dir) = &self.data_dir {
+            let _ = storage::save(dir, project);
+        }
+        Ok(())
+    }
+
     pub async fn get_active(&self) -> Option<Project> {
         let active_id = self.active_project.lock().await;
         let projects = self.projects.lock().await;
@@ -145,6 +177,7 @@ impl ProjectManager {
                 id: p.id,
                 name: p.name.clone(),
                 root_path: p.root_path.display().to_string(),
+                workspace: p.workspace.clone(),
             })
             .collect()
     }

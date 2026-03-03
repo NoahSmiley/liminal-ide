@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
 use crate::error::SessionError;
 
@@ -48,4 +49,16 @@ pub fn list_ids(data_dir: &Path) -> Vec<String> {
             name.strip_suffix(".json").map(String::from)
         })
         .collect()
+}
+
+/// Scan disk for all sessions belonging to a project, sorted by updated_at desc.
+pub fn find_by_project(data_dir: &Path, project_id: Uuid) -> Vec<Session> {
+    let ids = list_ids(data_dir);
+    let mut matches: Vec<Session> = ids
+        .iter()
+        .filter_map(|id| load(data_dir, id).ok())
+        .filter(|s| s.project_id == project_id)
+        .collect();
+    matches.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    matches
 }

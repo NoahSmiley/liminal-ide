@@ -4,10 +4,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::error::SessionError;
+
+fn now_unix() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -27,6 +32,10 @@ pub struct Session {
     pub id: Uuid,
     pub project_id: Uuid,
     pub messages: Vec<Message>,
+    #[serde(default)]
+    pub cli_session_id: Option<String>,
+    #[serde(default)]
+    pub updated_at: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -45,17 +54,11 @@ pub struct SessionManager {
 
 impl SessionManager {
     pub fn new() -> Self {
-        Self {
-            sessions: Arc::new(Mutex::new(HashMap::new())),
-            data_dir: None,
-        }
+        Self { sessions: Arc::new(Mutex::new(HashMap::new())), data_dir: None }
     }
 
     pub fn with_data_dir(data_dir: PathBuf) -> Self {
-        Self {
-            sessions: Arc::new(Mutex::new(HashMap::new())),
-            data_dir: Some(data_dir),
-        }
+        Self { sessions: Arc::new(Mutex::new(HashMap::new())), data_dir: Some(data_dir) }
     }
 
     pub async fn create_session(&self, project_id: Uuid) -> Session {
@@ -63,6 +66,8 @@ impl SessionManager {
             id: Uuid::new_v4(),
             project_id,
             messages: Vec::new(),
+            cli_session_id: None,
+            updated_at: now_unix(),
         };
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session.id, session.clone());
@@ -82,6 +87,23 @@ impl SessionManager {
             .get_mut(&session_id)
             .ok_or(SessionError::NotFound(session_id.to_string()))?;
         session.messages.push(message);
+        session.updated_at = now_unix();
+        if let Some(dir) = &self.data_dir {
+            let _ = storage::save(dir, session);
+        }
+        Ok(())
+    }
+
+    pub async fn set_cli_session_id(
+        &self,
+        session_id: Uuid,
+        cli_id: String,
+    ) -> Result<(), SessionError> {
+        let mut sessions = self.sessions.lock().await;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or(SessionError::NotFound(session_id.to_string()))?;
+        session.cli_session_id = Some(cli_id);
         if let Some(dir) = &self.data_dir {
             let _ = storage::save(dir, session);
         }
@@ -95,7 +117,6 @@ impl SessionManager {
         }
         drop(sessions);
 
-        // Try loading from disk
         if let Some(dir) = &self.data_dir {
             let session = storage::load(dir, &session_id.to_string())?;
             let mut sessions = self.sessions.lock().await;
@@ -104,6 +125,15 @@ impl SessionManager {
         }
 
         Err(SessionError::NotFound(session_id.to_string()))
+    }
+
+    pub async fn find_latest_for_project(&self, project_id: Uuid) -> Option<Session> {
+        let Some(dir) = &self.data_dir else { return None };
+        let sessions = storage::find_by_project(dir, project_id);
+        let latest = sessions.into_iter().next()?;
+        let mut cache = self.sessions.lock().await;
+        cache.insert(latest.id, latest.clone());
+        Some(latest)
     }
 
     pub async fn list_sessions(&self, project_id: Uuid) -> Vec<SessionSummary> {
@@ -115,9 +145,7 @@ impl SessionManager {
                 id: s.id,
                 project_id: s.project_id,
                 message_count: s.messages.len(),
-                preview: s
-                    .messages
-                    .first()
+                preview: s.messages.first()
                     .map(|m| m.content.chars().take(80).collect())
                     .unwrap_or_default(),
             })
@@ -173,7 +201,6 @@ mod tests {
         .await
         .unwrap();
 
-        // Load from a fresh manager
         let mgr2 = SessionManager::with_data_dir(dir.clone());
         let loaded = mgr2.get_session(session.id).await.expect("load failed");
         assert_eq!(loaded.messages.len(), 1);

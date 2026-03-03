@@ -13,10 +13,11 @@
     "windows": [
       {
         "title": "Liminal",
-        "width": 1280,
-        "height": 800,
+        "width": 2560,
+        "height": 1280,
         "resizable": true,
         "fullscreen": false,
+        "decorations": false,
         "zoomHotkeysEnabled": true
       }
     ],

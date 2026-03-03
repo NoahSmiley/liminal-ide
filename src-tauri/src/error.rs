@@ -102,6 +102,9 @@ pub enum ProjectError {
     #[error("Invalid project path: {0}")]
     InvalidPath(String),
 
+    #[error("Project not found: {0}")]
+    NotFound(String),
+
     #[error("Project already open: {0}")]
     AlreadyOpen(String),
 

@@ -29,8 +29,10 @@ pub async fn send_message(
     let model = state.ai_engine.model().to_string();
     let project_root = state.project_manager.get_active().await.map(|p| p.root_path);
     let timeout_secs = state.config.claude_timeout_seconds;
-    let cli_sid = state.cli_session_id.lock().await.clone();
-    let cli_sid_mutex = state.cli_session_id.clone();
+    let session = state.session_manager.get_session(session_id).await
+        .map_err(AppError::Session)?;
+    let cli_sid = session.cli_session_id.clone();
+    let session_mgr_for_sid = state.session_manager.clone();
     let change_tracker = state.change_tracker_arc();
     let pinned_context = match project_root.as_deref() {
         Some(root) => state.context_pin_manager.build_context_block(root).await,
@@ -58,7 +60,7 @@ pub async fn send_message(
             Ok(Ok(sr)) => {
                 eprintln!("[liminal] claude responded ({} chars)", sr.text.len());
                 if let Some(sid) = sr.cli_session_id {
-                    *cli_sid_mutex.lock().await = Some(sid);
+                    let _ = session_mgr_for_sid.set_cli_session_id(session_id, sid).await;
                 }
                 let _ = session_manager
                     .append_message(session_id, Message { role: Role::Assistant, content: sr.text })
