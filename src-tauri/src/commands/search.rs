@@ -6,7 +6,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn search_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     query: String,
     case_sensitive: Option<bool>,
     regex: Option<bool>,

@@ -8,7 +8,7 @@ use crate::error::{AppError, ProjectError};
 use crate::state::AppState;
 
 async fn require_active_root(
-    state: &State<'_, AppState>,
+    state: &State<'_, std::sync::Arc<AppState>>,
 ) -> Result<std::path::PathBuf, AppError> {
     state
         .project_manager
@@ -22,7 +22,7 @@ async fn require_active_root(
 
 #[tauri::command]
 pub async fn read_file(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
 ) -> Result<FileContent, AppError> {
     let root = require_active_root(&state).await?;
@@ -32,7 +32,7 @@ pub async fn read_file(
 
 #[tauri::command]
 pub async fn write_file(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
     content: String,
 ) -> Result<(), AppError> {
@@ -43,7 +43,7 @@ pub async fn write_file(
 
 #[tauri::command]
 pub async fn list_directory(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
 ) -> Result<Vec<DirEntry>, AppError> {
     let root = require_active_root(&state).await?;
@@ -53,7 +53,7 @@ pub async fn list_directory(
 
 #[tauri::command]
 pub async fn rename_file(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     old_path: String,
     new_path: String,
 ) -> Result<(), AppError> {
@@ -68,7 +68,7 @@ pub async fn rename_file(
 
 #[tauri::command]
 pub async fn delete_file(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
 ) -> Result<(), AppError> {
     let root = require_active_root(&state).await?;
@@ -81,7 +81,7 @@ pub async fn delete_file(
 
 #[tauri::command]
 pub async fn list_tree(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
     depth: Option<usize>,
 ) -> Result<Vec<TreeNode>, AppError> {

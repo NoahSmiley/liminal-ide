@@ -8,7 +8,29 @@ interface AiEventPayload {
   payload: AiEvent;
 }
 
-export function useConversation(sessionId: string | null, initialMessages?: Message[]) {
+interface SessionEventPayload {
+  type: "Session";
+  payload: {
+    kind: string;
+    session_id: string;
+    role?: string;
+    content?: string;
+  };
+}
+
+interface RelayEventPayload {
+  type: "Relay";
+  payload: {
+    kind: string;
+    device_name?: string;
+  };
+}
+
+export function useConversation(
+  sessionId: string | null,
+  initialMessages?: Message[],
+  onAdoptSession?: (id: string) => void,
+) {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [streaming, setStreaming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -23,10 +45,41 @@ export function useConversation(sessionId: string | null, initialMessages?: Mess
     }
   }, [sessionId, initialMessages]);
 
+  // Handle session events (user messages from relay devices)
+  const handleSessionEvent = useCallback(
+    (event: SessionEventPayload) => {
+      const payload = event.payload;
+      if (payload.kind !== "MessageAdded") return;
+      if (sessionId && payload.session_id !== sessionId) return;
+
+      // Auto-adopt session from relay
+      if (!sessionId && payload.session_id && onAdoptSession) {
+        onAdoptSession(payload.session_id);
+      }
+
+      if (payload.role === "user" && payload.content) {
+        // Only add if it doesn't duplicate the last user message (local sends)
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "user" && last.content === payload.content) return prev;
+          return [...prev, { role: "user", content: payload.content! }];
+        });
+      }
+    },
+    [sessionId, onAdoptSession],
+  );
+
+  useTauriEvent("session:event", handleSessionEvent);
+
   const handleAiEvent = useCallback(
     (event: AiEventPayload) => {
       const payload = event.payload;
       if (sessionId && payload.session_id !== sessionId) return;
+
+      // Auto-adopt session from relay when desktop has no active session
+      if (!sessionId && payload.session_id && onAdoptSession) {
+        onAdoptSession(payload.session_id);
+      }
 
       switch (payload.kind) {
         case "Thinking":
@@ -50,10 +103,14 @@ export function useConversation(sessionId: string | null, initialMessages?: Mess
         case "ToolUse": {
           setPending(false);
           setStreaming(true);
+          const isSubagent = payload.name === "Agent" || payload.name === "Task" || payload.name === "Skill";
           let description = payload.name;
           try {
             const parsed = JSON.parse(payload.input);
-            if (parsed.file_path) description = parsed.file_path;
+            if (isSubagent) {
+              // Keep the raw input JSON so subagent cards can parse it
+              description = payload.input;
+            } else if (parsed.file_path) description = parsed.file_path;
             else if (parsed.path) description = parsed.path;
             else if (parsed.command) description = parsed.command;
             else if (parsed.pattern) description = parsed.pattern;
@@ -105,10 +162,31 @@ export function useConversation(sessionId: string | null, initialMessages?: Mess
           break;
       }
     },
-    [sessionId],
+    [sessionId, onAdoptSession],
   );
 
   useTauriEvent("ai:event", handleAiEvent);
+
+  // Relay connect/disconnect messages
+  const handleRelayEvent = useCallback(
+    (event: RelayEventPayload) => {
+      const { kind, device_name } = event.payload;
+      if (kind === "ClientConnected" && device_name) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "system", content: `${device_name} connected` },
+        ]);
+      } else if (kind === "ClientDisconnected" && device_name) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "system", content: `${device_name} disconnected` },
+        ]);
+      }
+    },
+    [],
+  );
+
+  useTauriEvent("relay:event", handleRelayEvent);
 
   const addUserMessage = useCallback((content: string) => {
     setMessages((prev) => [...prev, { role: "user", content }]);

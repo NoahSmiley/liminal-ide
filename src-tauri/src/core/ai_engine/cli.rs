@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::core::change_tracker::ChangeTracker;
 use crate::core::events::{AiEvent, AppEvent, EventBus};
+use crate::core::settings::schema::PermissionMode;
 use crate::error::AiError;
 
 use super::cli_handlers::{handle_assistant, handle_user, read_stderr};
@@ -15,6 +16,9 @@ pub struct SessionResult {
     pub text: String,
     pub cli_session_id: Option<String>,
 }
+
+const FULL_TOOLS: &str = "Write,Read,Edit,MultiEdit,Bash,Glob,Grep,LS";
+const PLAN_TOOLS: &str = "Read,Glob,Grep,LS";
 
 /// Streams an entire Claude CLI session, emitting events in real-time.
 pub async fn stream_session(
@@ -26,17 +30,27 @@ pub async fn stream_session(
     resume_id: Option<&str>,
     project_root: Option<&std::path::Path>,
     change_tracker: &ChangeTracker,
+    permission_mode: &PermissionMode,
 ) -> Result<SessionResult, AiError> {
+    let tools = match permission_mode {
+        PermissionMode::Plan => PLAN_TOOLS,
+        _ => FULL_TOOLS,
+    };
+
     let mut args = vec![
         "-p", "--output-format", "stream-json",
         "--model", model,
         "--verbose",
-        "--dangerously-skip-permissions",
         "--disable-slash-commands",
         "--setting-sources", "",
-        "--tools", "Write,Read,Edit,MultiEdit,Bash,Glob,Grep,LS",
+        "--tools", tools,
         "--system-prompt", system_prompt,
     ];
+
+    // Full auto = skip all permission prompts; otherwise Claude asks before edits/bash
+    if *permission_mode == PermissionMode::Full {
+        args.push("--dangerously-skip-permissions");
+    }
 
     let resume_id_owned: String;
     if let Some(rid) = resume_id {
@@ -93,11 +107,13 @@ async fn process_stream(
     let reader = BufReader::new(stdout);
     let mut lines = reader.lines();
     let mut full_text = String::new();
+    let mut turn_text = String::new();
     let mut last_len: usize = 0;
     let mut emitted_thinking = false;
     let mut seen_tools: HashSet<String> = HashSet::new();
     let mut cli_session_id: Option<String> = None;
     let mut file_snapshots: HashMap<String, Option<String>> = HashMap::new();
+    let mut total_emitted: usize = 0;
 
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() { continue; }
@@ -106,7 +122,7 @@ async fn process_stream(
             Ok(ClaudeStreamEvent::Assistant { message }) => {
                 handle_assistant(
                     event_bus, session_id, &message.content,
-                    &mut full_text, &mut last_len,
+                    &mut turn_text, &mut last_len,
                     &mut emitted_thinking, &mut seen_tools,
                     project_root, &mut file_snapshots,
                 );
@@ -119,18 +135,29 @@ async fn process_stream(
                     parsed.as_ref(), project_root, change_tracker,
                     &mut file_snapshots,
                 ).await;
+                // Accumulate this turn's text into the full response
+                full_text.push_str(&turn_text);
+                total_emitted += turn_text.len();
+                turn_text.clear();
                 last_len = 0;
             }
             Ok(ClaudeStreamEvent::Result {
                 result, is_error, session_id: sid,
             }) => {
+                // Finalize: accumulate the last turn's text
+                if !turn_text.is_empty() {
+                    full_text.push_str(&turn_text);
+                    total_emitted += turn_text.len();
+                    turn_text.clear();
+                }
                 if let Some(s) = sid { cli_session_id = Some(s); }
                 if is_error {
                     event_bus.emit(AppEvent::Ai(AiEvent::Error {
                         session_id, message: result.clone(),
                     }));
                 }
-                if full_text.is_empty() && !result.is_empty() && !is_error {
+                // Only emit the Result text if nothing was streamed via TextDelta
+                if total_emitted == 0 && !result.is_empty() && !is_error {
                     full_text = result.clone();
                     event_bus.emit(AppEvent::Ai(AiEvent::TextDelta {
                         session_id, content: result,
@@ -140,6 +167,11 @@ async fn process_stream(
             Ok(_) => {}
             Err(e) => { eprintln!("[liminal] parse: {e}"); }
         }
+    }
+
+    // If stream ended without a Result event, finalize turn_text
+    if !turn_text.is_empty() {
+        full_text.push_str(&turn_text);
     }
 
     Ok((full_text, cli_session_id))

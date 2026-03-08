@@ -7,8 +7,8 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn create_session(
-    state: State<'_, AppState>,
-    project_id: Uuid,
+    state: State<'_, std::sync::Arc<AppState>>,
+    project_id: Option<Uuid>,
 ) -> Result<Session, AppError> {
     let session = state.session_manager.create_session(project_id).await;
     Ok(session)
@@ -16,7 +16,7 @@ pub async fn create_session(
 
 #[tauri::command]
 pub async fn get_session(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     session_id: Uuid,
 ) -> Result<Session, AppError> {
     let session = state.session_manager.get_session(session_id).await?;
@@ -25,8 +25,8 @@ pub async fn get_session(
 
 #[tauri::command]
 pub async fn list_sessions(
-    state: State<'_, AppState>,
-    project_id: Uuid,
+    state: State<'_, std::sync::Arc<AppState>>,
+    project_id: Option<Uuid>,
 ) -> Result<Vec<SessionSummary>, AppError> {
     let sessions = state.session_manager.list_sessions(project_id).await;
     Ok(sessions)
@@ -34,11 +34,13 @@ pub async fn list_sessions(
 
 #[tauri::command]
 pub async fn get_or_create_session(
-    state: State<'_, AppState>,
-    project_id: Uuid,
+    state: State<'_, std::sync::Arc<AppState>>,
+    project_id: Option<Uuid>,
 ) -> Result<Session, AppError> {
-    if let Some(session) = state.session_manager.find_latest_for_project(project_id).await {
-        return Ok(session);
+    if let Some(pid) = project_id {
+        if let Some(session) = state.session_manager.find_latest_for_project(pid).await {
+            return Ok(session);
+        }
     }
     let session = state.session_manager.create_session(project_id).await;
     Ok(session)

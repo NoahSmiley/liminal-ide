@@ -4,20 +4,20 @@ import { tags } from "@lezer/highlight";
 
 const liminalEditorTheme = EditorView.theme({
   "&": {
-    backgroundColor: "#000000",
+    backgroundColor: "#050507",
     color: "#d4d4d8",
     fontFamily: '"Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
     fontSize: "12px",
     lineHeight: "1.4",
   },
-  ".cm-content": { caretColor: "#22d3ee", padding: "0" },
+  ".cm-content": { caretColor: "#22d3ee", padding: "8px 0" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#22d3ee" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
     backgroundColor: "#27272a",
   },
   ".cm-activeLine": { backgroundColor: "transparent" },
   ".cm-gutters": {
-    backgroundColor: "#000000",
+    backgroundColor: "#050507",
     color: "#3f3f46",
     border: "none",
     minWidth: "3ch",
@@ -28,9 +28,9 @@ const liminalEditorTheme = EditorView.theme({
     paddingRight: "12px",
   },
   ".cm-foldPlaceholder": { backgroundColor: "#27272a", border: "none", color: "#71717a" },
-  ".cm-tooltip": { backgroundColor: "#0a0a0a", border: "1px solid #27272a", color: "#d4d4d8" },
-  ".cm-tooltip-autocomplete": { "& > ul > li[aria-selected]": { backgroundColor: "#27272a" } },
-  ".cm-panels": { backgroundColor: "#0a0a0a", borderColor: "#27272a" },
+  ".cm-tooltip": { backgroundColor: "#0e0e12", border: "1px solid #222228", color: "#d4d4d8" },
+  ".cm-tooltip-autocomplete": { "& > ul > li[aria-selected]": { backgroundColor: "#222228" } },
+  ".cm-panels": { backgroundColor: "#0a0a0d", borderColor: "#222228" },
   ".cm-searchMatch": { backgroundColor: "#422006", outline: "1px solid #78350f" },
   ".cm-selectionMatch": { backgroundColor: "#1c1917" },
 }, { dark: true });

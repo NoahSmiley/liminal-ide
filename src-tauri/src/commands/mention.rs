@@ -6,7 +6,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn resolve_mentions(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     prompt: String,
 ) -> Result<(String, Vec<ResolvedMention>), AppError> {
     let root = state

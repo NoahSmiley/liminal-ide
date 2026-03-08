@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod ai;
 pub mod changes;
 pub mod collab;
@@ -17,5 +18,7 @@ pub mod terminal;
 pub mod todo;
 pub mod session;
 pub mod project;
+pub mod relay;
 pub mod settings;
+pub mod skills;
 pub mod summary;

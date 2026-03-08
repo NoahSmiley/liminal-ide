@@ -6,7 +6,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn scan_todos(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<TodoItem>, AppError> {
     let root = state
         .project_manager

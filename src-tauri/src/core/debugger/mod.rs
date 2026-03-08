@@ -3,29 +3,34 @@ pub mod protocol;
 pub mod types;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use adapter::DapAdapter;
+use protocol::DapBody;
 use types::{Breakpoint, DebugSession, DebugState, StackFrame, Variable};
+use crate::core::events::{EventBus, AppEvent, DebugEvent};
 
 pub struct DebugManager {
-    session: Mutex<DebugSession>,
+    session: Arc<Mutex<DebugSession>>,
     adapter: Mutex<Option<DapAdapter>>,
     project_root: Mutex<Option<PathBuf>>,
+    event_bus: EventBus,
 }
 
 impl DebugManager {
-    pub fn new() -> Self {
+    pub fn new(event_bus: EventBus) -> Self {
         Self {
-            session: Mutex::new(DebugSession::new()),
+            session: Arc::new(Mutex::new(DebugSession::new())),
             adapter: Mutex::new(None),
             project_root: Mutex::new(None),
+            event_bus,
         }
     }
 
     pub async fn start(&self, adapter_cmd: &str, args: &[&str], cwd: &str, program: &str) -> Result<(), String> {
         let path = PathBuf::from(cwd);
-        let dap = DapAdapter::spawn(adapter_cmd, args, &path).await?;
+        let mut dap = DapAdapter::spawn(adapter_cmd, args, &path).await?;
 
         // Send initialize request
         dap.send_request("initialize", Some(serde_json::json!({
@@ -33,6 +38,9 @@ impl DebugManager {
             "adapterID": adapter_cmd,
             "supportsVariableType": true,
         }))).await?;
+
+        // Take rx for the event loop before storing the adapter
+        let rx = std::mem::replace(&mut dap.rx, tokio::sync::mpsc::channel(1).1);
 
         *self.project_root.lock().await = Some(path);
         *self.adapter.lock().await = Some(dap);
@@ -46,6 +54,102 @@ impl DebugManager {
 
         let mut sess = self.session.lock().await;
         sess.state = DebugState::Running;
+        drop(sess);
+
+        // Spawn event loop to process DAP messages
+        let session = self.session.clone();
+        let bus = self.event_bus.clone();
+        tokio::spawn(async move {
+            let mut rx = rx;
+            while let Some(msg) = rx.recv().await {
+                match &msg.body {
+                    DapBody::Event { event, body } => {
+                        match event.as_str() {
+                            "stopped" => {
+                                let reason = body.as_ref()
+                                    .and_then(|b| b.get("reason"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let thread_id = body.as_ref()
+                                    .and_then(|b| b.get("threadId"))
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(1) as u32;
+                                let mut sess = session.lock().await;
+                                sess.state = DebugState::Paused { reason: reason.clone() };
+                                sess.thread_id = Some(thread_id);
+                                drop(sess);
+                                bus.emit(AppEvent::Debug(DebugEvent::Stopped { reason, thread_id }));
+                            }
+                            "continued" => {
+                                let thread_id = body.as_ref()
+                                    .and_then(|b| b.get("threadId"))
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(1) as u32;
+                                session.lock().await.state = DebugState::Running;
+                                bus.emit(AppEvent::Debug(DebugEvent::Continued { thread_id }));
+                            }
+                            "terminated" | "exited" => {
+                                let exit_code = body.as_ref()
+                                    .and_then(|b| b.get("exitCode"))
+                                    .and_then(|v| v.as_i64())
+                                    .unwrap_or(0) as i32;
+                                session.lock().await.state = DebugState::Exited { code: exit_code };
+                                bus.emit(AppEvent::Debug(DebugEvent::Exited { exit_code }));
+                            }
+                            _ => {}
+                        }
+                    }
+                    DapBody::Response { command, body, success, .. } if *success => {
+                        match command.as_str() {
+                            "stackTrace" => {
+                                if let Some(b) = body {
+                                    if let Some(frames_val) = b.get("stackFrames") {
+                                        let frames: Vec<StackFrame> = frames_val.as_array()
+                                            .map(|arr| arr.iter().filter_map(|f| {
+                                                Some(StackFrame {
+                                                    id: f.get("id")?.as_u64()? as u32,
+                                                    name: f.get("name")?.as_str()?.to_string(),
+                                                    source_path: f.get("source")
+                                                        .and_then(|s| s.get("path"))
+                                                        .and_then(|p| p.as_str())
+                                                        .map(|s| s.to_string()),
+                                                    line: f.get("line")?.as_u64()? as u32,
+                                                    column: f.get("column").and_then(|c| c.as_u64()).unwrap_or(0) as u32,
+                                                })
+                                            }).collect())
+                                            .unwrap_or_default();
+                                        session.lock().await.stack_frames = frames.clone();
+                                        bus.emit(AppEvent::Debug(DebugEvent::StackFrames { frames }));
+                                    }
+                                }
+                            }
+                            "variables" => {
+                                if let Some(b) = body {
+                                    if let Some(vars_val) = b.get("variables") {
+                                        let variables: Vec<Variable> = vars_val.as_array()
+                                            .map(|arr| arr.iter().filter_map(|v| {
+                                                Some(Variable {
+                                                    name: v.get("name")?.as_str()?.to_string(),
+                                                    value: v.get("value")?.as_str()?.to_string(),
+                                                    kind: v.get("type").and_then(|t| t.as_str()).unwrap_or("").to_string(),
+                                                    children_ref: v.get("variablesReference").and_then(|r| r.as_u64()).unwrap_or(0) as u32,
+                                                })
+                                            }).collect())
+                                            .unwrap_or_default();
+                                        session.lock().await.variables = variables.clone();
+                                        bus.emit(AppEvent::Debug(DebugEvent::Variables { variables }));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
         Ok(())
     }
 

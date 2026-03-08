@@ -9,7 +9,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn summarize_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     session_id: Uuid,
 ) -> Result<(), AppError> {
     let project = state.project_manager.get_active().await
@@ -43,10 +43,11 @@ pub async fn summarize_project(
     let pinned_context = state.context_pin_manager.build_context_block(&root).await;
 
     let handle = tokio::spawn(async move {
-        let system_prompt = AiEngine::system_prompt(Some(&root), &pinned_context);
+        let system_prompt = AiEngine::system_prompt(Some(&root), &pinned_context, "");
         let future = crate::core::ai_engine::streaming::stream_claude_response(
             &event_bus, session_id, &prompt, &system_prompt, &model,
             cli_sid.as_deref(), Some(&root), &change_tracker,
+            &crate::core::settings::schema::PermissionMode::Full,
         );
 
         match tokio::time::timeout(

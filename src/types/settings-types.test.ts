@@ -57,6 +57,8 @@ describe("settings-types constants", () => {
       theme: "dark",
       font_size: 14,
       keybinding_preset: "vim",
+      personality: "",
+      permission_mode: "full",
     };
     expect(settings.model).toBe("sonnet");
     expect(settings.theme).toBe("dark");

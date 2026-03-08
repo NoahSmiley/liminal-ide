@@ -6,6 +6,7 @@ mod core;
 
 pub use error::AppError;
 
+use std::sync::Arc;
 use tauri::Manager;
 use core::events::EventBus;
 use state::AppState;
@@ -15,8 +16,15 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .setup(|app| {
             let event_bus = EventBus::new(app.handle().clone());
-            let state = AppState::new(event_bus);
-            app.manage(state);
+            let state = Arc::new(AppState::new(event_bus));
+            app.manage(state.clone());
+
+            // Auto-connect to cloud relay proxy
+            let app_state = state.clone();
+            tauri::async_runtime::spawn(async move {
+                app_state.relay_manager.auto_connect_cloud(app_state.clone()).await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -82,6 +90,7 @@ pub fn run() {
             commands::collab::collab_leave,
             commands::collab::collab_send_message,
             commands::collab::collab_set_user_name,
+            commands::collab::collab_send_cursor_update,
             commands::collab::collab_get_status,
             commands::debugger::debug_start,
             commands::debugger::debug_stop,
@@ -96,6 +105,27 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,
+            commands::relay::start_relay,
+            commands::relay::stop_relay,
+            commands::relay::get_relay_status,
+            commands::relay::get_pairing_code,
+            commands::relay::regenerate_pairing_code,
+            commands::relay::list_paired_devices,
+            commands::relay::revoke_paired_device,
+            commands::relay::update_relay_config,
+            commands::relay::start_cloud_relay,
+            commands::relay::stop_cloud_relay,
+            commands::relay::get_cloud_status,
+            commands::relay::get_account_key,
+            commands::relay::set_cloud_url,
+            commands::relay::generate_cloud_qr,
+            commands::relay::generate_pairing_qr,
+            commands::skills::list_skills,
+            commands::agents::list_agents,
+            commands::agents::save_agent,
+            commands::agents::delete_agent,
+            commands::agents::set_active_agent,
+            commands::agents::get_active_agent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

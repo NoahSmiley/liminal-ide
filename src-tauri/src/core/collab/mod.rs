@@ -4,19 +4,22 @@ pub mod protocol;
 use tokio::sync::Mutex;
 use client::CollabClient;
 use protocol::CollabMessage;
+use crate::core::events::{EventBus, AppEvent, CollabEvent};
 
 pub struct CollabManager {
     client: Mutex<Option<CollabClient>>,
     room_id: Mutex<Option<String>>,
     user_name: Mutex<String>,
+    event_bus: EventBus,
 }
 
 impl CollabManager {
-    pub fn new() -> Self {
+    pub fn new(event_bus: EventBus) -> Self {
         Self {
             client: Mutex::new(None),
             room_id: Mutex::new(None),
             user_name: Mutex::new("anonymous".to_string()),
+            event_bus,
         }
     }
 
@@ -25,7 +28,7 @@ impl CollabManager {
     }
 
     pub async fn create_room(&self, server_url: &str) -> Result<String, String> {
-        let ws_client = CollabClient::connect(server_url).await?;
+        let mut ws_client = CollabClient::connect(server_url).await?;
         let room_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
         let user = self.user_name.lock().await.clone();
 
@@ -34,13 +37,14 @@ impl CollabManager {
             user_name: user,
         }).await?;
 
+        self.spawn_event_reader(&mut ws_client);
         *self.client.lock().await = Some(ws_client);
         *self.room_id.lock().await = Some(room_id.clone());
         Ok(room_id)
     }
 
     pub async fn join_room(&self, server_url: &str, room_id: &str) -> Result<(), String> {
-        let ws_client = CollabClient::connect(server_url).await?;
+        let mut ws_client = CollabClient::connect(server_url).await?;
         let user = self.user_name.lock().await.clone();
 
         ws_client.send(CollabMessage::Join {
@@ -48,6 +52,7 @@ impl CollabManager {
             user_name: user,
         }).await?;
 
+        self.spawn_event_reader(&mut ws_client);
         *self.client.lock().await = Some(ws_client);
         *self.room_id.lock().await = Some(room_id.to_string());
         Ok(())
@@ -102,6 +107,34 @@ impl CollabManager {
             }
             _ => Err("Not connected".to_string()),
         }
+    }
+
+    fn spawn_event_reader(&self, client: &mut CollabClient) {
+        let incoming = std::mem::replace(&mut client.incoming, tokio::sync::mpsc::channel(1).1);
+        let bus = self.event_bus.clone();
+        tokio::spawn(async move {
+            let mut rx = incoming;
+            while let Some(msg) = rx.recv().await {
+                let event = match msg {
+                    CollabMessage::UserJoined { room_id, user_name } => {
+                        Some(CollabEvent::UserJoined { room_id, user_name })
+                    }
+                    CollabMessage::UserLeft { room_id, user_name } => {
+                        Some(CollabEvent::UserLeft { room_id, user_name })
+                    }
+                    CollabMessage::CursorUpdate { user_name, file, line, col, .. } => {
+                        Some(CollabEvent::CursorUpdate { user_name, file, line, col })
+                    }
+                    CollabMessage::ChatMessage { user_name, content, .. } => {
+                        Some(CollabEvent::ChatMessage { user_name, content })
+                    }
+                    _ => None,
+                };
+                if let Some(e) = event {
+                    bus.emit(AppEvent::Collab(e));
+                }
+            }
+        });
     }
 
     pub async fn is_connected(&self) -> bool {

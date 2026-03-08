@@ -7,9 +7,9 @@ interface SettingsSectionProps {
 
 export function SettingsSection({ label, children }: SettingsSectionProps) {
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="text-[11px] text-zinc-500 uppercase tracking-wider">{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] text-zinc-500 uppercase tracking-[0.1em]">{label}</span>
+      <div>{children}</div>
     </div>
   );
 }

@@ -30,7 +30,8 @@ pub struct Message {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Session {
     pub id: Uuid,
-    pub project_id: Uuid,
+    #[serde(default)]
+    pub project_id: Option<Uuid>,
     pub messages: Vec<Message>,
     #[serde(default)]
     pub cli_session_id: Option<String>,
@@ -41,7 +42,7 @@ pub struct Session {
 #[derive(Clone, Debug, Serialize)]
 pub struct SessionSummary {
     pub id: Uuid,
-    pub project_id: Uuid,
+    pub project_id: Option<Uuid>,
     pub message_count: usize,
     pub preview: String,
 }
@@ -61,7 +62,7 @@ impl SessionManager {
         Self { sessions: Arc::new(Mutex::new(HashMap::new())), data_dir: Some(data_dir) }
     }
 
-    pub async fn create_session(&self, project_id: Uuid) -> Session {
+    pub async fn create_session(&self, project_id: Option<Uuid>) -> Session {
         let session = Session {
             id: Uuid::new_v4(),
             project_id,
@@ -129,18 +130,21 @@ impl SessionManager {
 
     pub async fn find_latest_for_project(&self, project_id: Uuid) -> Option<Session> {
         let Some(dir) = &self.data_dir else { return None };
-        let sessions = storage::find_by_project(dir, project_id);
+        let sessions = storage::find_by_project(dir, Some(project_id));
         let latest = sessions.into_iter().next()?;
         let mut cache = self.sessions.lock().await;
         cache.insert(latest.id, latest.clone());
         Some(latest)
     }
 
-    pub async fn list_sessions(&self, project_id: Uuid) -> Vec<SessionSummary> {
+    pub async fn list_sessions(&self, project_id: Option<Uuid>) -> Vec<SessionSummary> {
         let sessions = self.sessions.lock().await;
         sessions
             .values()
-            .filter(|s| s.project_id == project_id)
+            .filter(|s| match project_id {
+                Some(pid) => s.project_id == Some(pid),
+                None => true,
+            })
             .map(|s| SessionSummary {
                 id: s.id,
                 project_id: s.project_id,
@@ -160,7 +164,7 @@ mod tests {
     #[tokio::test]
     async fn create_and_retrieve_session() {
         let mgr = SessionManager::new();
-        let project_id = Uuid::new_v4();
+        let project_id = Some(Uuid::new_v4());
         let session = mgr.create_session(project_id).await;
         let retrieved = mgr.get_session(session.id).await.expect("session not found");
         assert_eq!(retrieved.id, session.id);
@@ -169,7 +173,7 @@ mod tests {
     #[tokio::test]
     async fn append_message_to_session() {
         let mgr = SessionManager::new();
-        let session = mgr.create_session(Uuid::new_v4()).await;
+        let session = mgr.create_session(Some(Uuid::new_v4())).await;
         mgr.append_message(
             session.id,
             Message { role: Role::User, content: "hello".into() },
@@ -193,7 +197,7 @@ mod tests {
         let dir = std::env::temp_dir().join("liminal-session-test");
         let _ = std::fs::remove_dir_all(&dir);
         let mgr = SessionManager::with_data_dir(dir.clone());
-        let session = mgr.create_session(Uuid::new_v4()).await;
+        let session = mgr.create_session(Some(Uuid::new_v4())).await;
         mgr.append_message(
             session.id,
             Message { role: Role::User, content: "persisted".into() },

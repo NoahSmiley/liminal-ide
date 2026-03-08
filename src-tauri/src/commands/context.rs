@@ -7,7 +7,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn pin_file(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
 ) -> Result<PinnedContext, AppError> {
     let pin = state.context_pin_manager.pin_file(path).await;
@@ -16,7 +16,7 @@ pub async fn pin_file(
 
 #[tauri::command]
 pub async fn pin_context(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     label: String,
     content: String,
 ) -> Result<PinnedContext, AppError> {
@@ -26,7 +26,7 @@ pub async fn pin_context(
 
 #[tauri::command]
 pub async fn unpin_context(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     id: Uuid,
 ) -> Result<(), AppError> {
     state.context_pin_manager.unpin(id).await;
@@ -35,7 +35,7 @@ pub async fn unpin_context(
 
 #[tauri::command]
 pub async fn list_pinned(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<PinnedContext>, AppError> {
     Ok(state.context_pin_manager.list().await)
 }

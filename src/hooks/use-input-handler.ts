@@ -4,18 +4,20 @@ import { useNlTerminal } from "./use-nl-terminal";
 
 interface InputHandlerOpts {
   sessionId: string | null;
-  terminalId: string | null;
   terminalOpen: boolean;
   addUserMessage: (content: string) => void;
   markPending: () => void;
   handleCommand: (cmd: string, args: string) => Promise<void>;
   toggleTerminal: () => void;
-  setTerminalId: (id: string | null) => void;
+  spawnTerminal: () => Promise<string | null>;
+  sendTerminalInput: (id: string, input: string) => Promise<void>;
+  activeTerminalId: string | null;
 }
 
 export function useInputHandler({
-  sessionId, terminalId, terminalOpen,
-  addUserMessage, markPending, handleCommand, toggleTerminal, setTerminalId,
+  sessionId, terminalOpen,
+  addUserMessage, markPending, handleCommand, toggleTerminal,
+  spawnTerminal, sendTerminalInput, activeTerminalId,
 }: InputHandlerOpts) {
   const nl = useNlTerminal({ sessionId, addUserMessage, markPending });
 
@@ -39,24 +41,29 @@ export function useInputHandler({
         }
         // ! prefix: direct terminal command
         if (input.startsWith("!")) {
-          let tid = terminalId;
+          let tid = activeTerminalId;
           if (!tid) {
-            tid = await invoke<string>("spawn_terminal");
-            setTerminalId(tid);
+            tid = await spawnTerminal();
             if (!terminalOpen) toggleTerminal();
           }
-          await invoke("send_terminal_input", { terminalId: tid, input: input.slice(1) + "\n" });
+          if (tid) await sendTerminalInput(tid, input.slice(1) + "\n");
           return;
         }
+        // Resolve @mentions before sending
+        let content = input;
+        try {
+          const result = await invoke<[string, unknown[]]>("resolve_mentions", { prompt: input });
+          content = result[0];
+        } catch { /* mention resolution failed, send raw */ }
         addUserMessage(input);
         markPending();
-        await invoke("send_message", { sessionId, content: input }).catch(
+        await invoke("send_message", { sessionId, content }).catch(
           (err: unknown) => addUserMessage(`error: ${String(err)}`),
         );
       } catch (err) {
         addUserMessage(`error: ${String(err)}`);
       }
     },
-    [sessionId, terminalId, terminalOpen, addUserMessage, markPending, handleCommand, toggleTerminal, setTerminalId, nl],
+    [sessionId, terminalOpen, addUserMessage, markPending, handleCommand, toggleTerminal, spawnTerminal, sendTerminalInput, activeTerminalId, nl],
   );
 }

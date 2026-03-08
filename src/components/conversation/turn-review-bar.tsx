@@ -22,30 +22,30 @@ export function TurnReviewBar({
   const allResolved = pendingCount === 0;
 
   return (
-    <div className="border border-zinc-800/40 bg-zinc-950/50 my-1 text-[11px]">
-      <div className="flex items-center gap-3 px-2 py-1">
+    <div className="border border-panel-border/70 bg-card/50 rounded-[3px] shadow-sm shadow-black/30 my-3 text-[12px]">
+      <div className="flex items-center gap-3 px-3 py-2.5">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-zinc-600 hover:text-zinc-400"
+          className="text-zinc-600 hover:text-zinc-400 text-[10px] transition-colors"
         >
-          {expanded ? "v" : ">"}
+          {expanded ? "▾" : "▸"}
         </button>
         <span className="text-zinc-400">
-          {changes.length} file{changes.length > 1 ? "s" : ""} changed
+          {changes.length} file{changes.length > 1 ? "s" : ""} changed this turn
         </span>
         {allResolved ? (
-          <span className="text-emerald-600 ml-auto">all resolved</span>
+          <span className="text-sky-600 ml-auto">all resolved</span>
         ) : (
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-3 ml-auto">
             <button
               onClick={() => onAcceptAll(turnId)}
-              className="text-emerald-500 hover:text-emerald-400"
+              className="text-sky-500 hover:text-sky-400 text-[11px] transition-colors"
             >
               accept all
             </button>
             <button
               onClick={() => onRejectAll(turnId)}
-              className="text-red-500 hover:text-red-400"
+              className="text-red-500 hover:text-red-400 text-[11px] transition-colors"
             >
               reject all
             </button>
@@ -53,7 +53,7 @@ export function TurnReviewBar({
         )}
       </div>
       {expanded && (
-        <div className="border-t border-zinc-800/40 max-h-[40vh] overflow-y-auto">
+        <div className="border-t border-border/40 max-h-[40vh] overflow-y-auto">
           {changes.map((change) => (
             <FileReviewItem
               key={change.path}

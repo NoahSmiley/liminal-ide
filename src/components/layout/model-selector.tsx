@@ -23,19 +23,19 @@ export function ModelSelector({ model, onSelect }: ModelSelectorProps) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+        className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors text-[12px] tracking-wide"
       >
-        <span>{model}</span>
-        <span className="text-[10px] text-zinc-600">{open ? "▴" : "▾"}</span>
+        <span className="w-[60px] text-right">{model}</span>
+        <span className="text-[9px] text-zinc-600">{open ? "▴" : "▾"}</span>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 border border-zinc-800 bg-zinc-950 rounded z-50 min-w-[100px]">
+        <div className="absolute right-0 bottom-full mb-2 border border-panel-border bg-popover rounded-[3px] shadow-2xl shadow-black/70 z-50 min-w-[120px] py-1.5">
           {MODEL_OPTIONS.map((opt) => (
             <button
               key={opt}
               onClick={() => { onSelect(opt); setOpen(false); }}
-              className={`block w-full text-left px-3 py-1.5 text-[13px] transition-colors ${
-                opt === model ? "text-zinc-200 bg-zinc-800/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900"
+              className={`block w-full text-left px-4 py-2 text-[12px] tracking-wide transition-colors ${
+                opt === model ? "text-zinc-200 bg-accent/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-accent/30"
               }`}
             >
               {opt}

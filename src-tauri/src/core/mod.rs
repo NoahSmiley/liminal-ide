@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod ai_engine;
 pub mod change_tracker;
 pub mod collab;
@@ -20,4 +21,6 @@ pub mod settings;
 pub mod snippets;
 pub mod terminal;
 pub mod todo_tracker;
+pub mod relay;
+pub mod skills;
 pub mod watcher;

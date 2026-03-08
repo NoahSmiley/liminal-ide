@@ -6,7 +6,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn spawn_terminal(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Uuid, AppError> {
     let project = state
         .project_manager
@@ -24,7 +24,7 @@ pub async fn spawn_terminal(
 
 #[tauri::command]
 pub async fn send_terminal_input(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     terminal_id: Uuid,
     input: String,
 ) -> Result<(), AppError> {
@@ -37,14 +37,14 @@ pub async fn send_terminal_input(
 
 #[tauri::command]
 pub async fn list_terminals(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<Uuid>, AppError> {
     Ok(state.terminal_manager.list().await)
 }
 
 #[tauri::command]
 pub async fn kill_terminal(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     terminal_id: Uuid,
 ) -> Result<(), AppError> {
     state.terminal_manager.kill(terminal_id).await?;

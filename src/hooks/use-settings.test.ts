@@ -10,6 +10,8 @@ const defaultSettings: Settings = {
   theme: "dark",
   font_size: 14,
   keybinding_preset: "default",
+  personality: "",
+  permission_mode: "full",
 };
 
 describe("useSettings invoke calls", () => {

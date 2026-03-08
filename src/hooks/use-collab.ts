@@ -1,10 +1,30 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { CollabStatus } from "../types/collab-types";
+import { useTauriEvent } from "./use-tauri-event";
+import type { CollabStatus, RemoteCursor } from "../types/collab-types";
+
+interface CollabEventPayload {
+  type: "Collab";
+  payload: { kind: string; user_name?: string; file?: string; line?: number; col?: number; room_id?: string; content?: string };
+}
 
 export function useCollab() {
   const [status, setStatus] = useState<CollabStatus>({ connected: false, room_id: null });
   const [loading, setLoading] = useState(false);
+  const [cursors, setCursors] = useState<RemoteCursor[]>([]);
+
+  useTauriEvent<CollabEventPayload>("collab:event", (event) => {
+    const p = event.payload;
+    if (p.kind === "CursorUpdate" && p.user_name && p.file && p.line != null && p.col != null) {
+      setCursors((prev) => {
+        const filtered = prev.filter((c) => c.user_name !== p.user_name);
+        return [...filtered, { user_name: p.user_name!, file: p.file!, line: p.line!, col: p.col! }];
+      });
+    }
+    if (p.kind === "UserLeft" && p.user_name) {
+      setCursors((prev) => prev.filter((c) => c.user_name !== p.user_name));
+    }
+  });
 
   const refresh = useCallback(async () => {
     try {
@@ -38,6 +58,7 @@ export function useCollab() {
 
   const leave = useCallback(async () => {
     await invoke("collab_leave");
+    setCursors([]);
     await refresh();
   }, [refresh]);
 
@@ -49,9 +70,13 @@ export function useCollab() {
     await invoke("collab_set_user_name", { name });
   }, []);
 
+  const sendCursorUpdate = useCallback(async (file: string, line: number, col: number) => {
+    await invoke("collab_send_cursor_update", { file, line, col }).catch(() => {});
+  }, []);
+
   return {
-    status, loading, refresh,
+    status, loading, cursors, refresh,
     createRoom, joinRoom, leave,
-    sendMessage, setUserName,
+    sendMessage, setUserName, sendCursorUpdate,
   };
 }

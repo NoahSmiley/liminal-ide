@@ -14,6 +14,20 @@ pub enum AppEvent {
     Lsp(LspEvent),
     Lint(LintEvent),
     Settings(SettingsEvent),
+    Collab(CollabEvent),
+    Debug(DebugEvent),
+    Relay(RelayUiEvent),
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind")]
+pub enum RelayUiEvent {
+    ServerStarted { port: u16, pairing_code: String },
+    ServerStopped,
+    ClientConnected { device_name: String },
+    ClientDisconnected { device_name: String },
+    CloudConnected { cloud_url: String },
+    CloudDisconnected,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -49,7 +63,7 @@ pub enum TerminalEvent {
 #[serde(tag = "kind")]
 pub enum SessionEvent {
     Created { session_id: Uuid },
-    MessageAdded { session_id: Uuid },
+    MessageAdded { session_id: Uuid, role: String, content: String },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -87,14 +101,63 @@ pub enum SettingsEvent {
     Updated { settings: crate::core::settings::schema::Settings },
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind")]
+pub enum CollabEvent {
+    UserJoined { room_id: String, user_name: String },
+    UserLeft { room_id: String, user_name: String },
+    CursorUpdate { user_name: String, file: String, line: u32, col: u32 },
+    ChatMessage { user_name: String, content: String },
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind")]
+pub enum DebugEvent {
+    Stopped { reason: String, thread_id: u32 },
+    Continued { thread_id: u32 },
+    Exited { exit_code: i32 },
+    StackFrames { frames: Vec<crate::core::debugger::types::StackFrame> },
+    Variables { variables: Vec<crate::core::debugger::types::Variable> },
+}
+
 #[derive(Clone)]
 pub struct EventBus {
     app_handle: AppHandle,
+    relay_tx: std::sync::Arc<std::sync::Mutex<Option<tokio::sync::broadcast::Sender<AppEvent>>>>,
+    cloud_tx: std::sync::Arc<std::sync::Mutex<Option<tokio::sync::broadcast::Sender<AppEvent>>>>,
 }
 
 impl EventBus {
     pub fn new(app_handle: AppHandle) -> Self {
-        Self { app_handle }
+        Self {
+            app_handle,
+            relay_tx: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            cloud_tx: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        }
+    }
+
+    pub fn set_relay_sender(&self, tx: tokio::sync::broadcast::Sender<AppEvent>) {
+        if let Ok(mut relay) = self.relay_tx.lock() {
+            *relay = Some(tx);
+        }
+    }
+
+    pub fn clear_relay_sender(&self) {
+        if let Ok(mut relay) = self.relay_tx.lock() {
+            *relay = None;
+        }
+    }
+
+    pub fn set_cloud_sender(&self, tx: tokio::sync::broadcast::Sender<AppEvent>) {
+        if let Ok(mut cloud) = self.cloud_tx.lock() {
+            *cloud = Some(tx);
+        }
+    }
+
+    pub fn clear_cloud_sender(&self) {
+        if let Ok(mut cloud) = self.cloud_tx.lock() {
+            *cloud = None;
+        }
     }
 
     pub fn emit(&self, event: AppEvent) {
@@ -108,10 +171,27 @@ impl EventBus {
             AppEvent::Lsp(_) => "lsp:event",
             AppEvent::Lint(_) => "lint:event",
             AppEvent::Settings(_) => "settings:event",
+            AppEvent::Collab(_) => "collab:event",
+            AppEvent::Debug(_) => "debug:event",
+            AppEvent::Relay(_) => "relay:event",
         };
 
         if let Err(e) = self.app_handle.emit(event_name, &event) {
             eprintln!("Failed to emit event {}: {}", event_name, e);
+        }
+
+        // Forward to local relay if connected
+        if let Ok(relay) = self.relay_tx.lock() {
+            if let Some(tx) = relay.as_ref() {
+                let _ = tx.send(event.clone());
+            }
+        }
+
+        // Forward to cloud relay if connected
+        if let Ok(cloud) = self.cloud_tx.lock() {
+            if let Some(tx) = cloud.as_ref() {
+                let _ = tx.send(event);
+            }
         }
     }
 }

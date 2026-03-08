@@ -35,6 +35,9 @@ pub enum AppError {
 
     #[error("Debug error: {0}")]
     Debug(String),
+
+    #[error("Relay error: {0}")]
+    Relay(String),
 }
 
 #[derive(Error, Debug)]

@@ -1,4 +1,5 @@
 import type { FileBuffer } from "../../hooks/use-open-files";
+import { fileTypeDotColor } from "../../lib/file-type-color";
 
 interface TabBarProps {
   files: Map<string, FileBuffer>;
@@ -17,27 +18,32 @@ export function TabBar({ files, activeFile, onSelect, onClose }: TabBarProps) {
   if (paths.length === 0) return null;
 
   return (
-    <div data-tutorial="tab-bar" className="flex items-center gap-0 border-b border-zinc-800 overflow-x-auto text-[10px]">
+    <div data-tutorial="tab-bar" className="flex items-center gap-0 overflow-x-auto">
       {paths.map((path) => {
         const fb = files.get(path);
         const isActive = path === activeFile;
+        const name = filename(path);
         return (
           <button
             key={path}
             onClick={() => onSelect(path)}
-            className={`flex items-center gap-1 px-2 py-1 border-r border-zinc-800/60 shrink-0 ${
-              isActive ? "text-zinc-200 bg-zinc-900/50" : "text-zinc-600 hover:text-zinc-400"
+            className={`group relative flex items-center gap-1.5 px-3 py-1.5 shrink-0 transition-colors ${
+              isActive ? "text-zinc-200" : "text-zinc-600 hover:text-zinc-400"
             }`}
           >
-            {fb?.dirty && <span className="text-amber-500 text-[8px]">*</span>}
-            <span className="truncate max-w-[120px]">{filename(path)}</span>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? "opacity-80" : "opacity-40"} ${fileTypeDotColor(name)}`} />
+            {fb?.dirty && <span className="text-amber-500/80 text-[8px]">●</span>}
+            <span className="truncate max-w-[120px] text-[11px]">{name}</span>
             <span
               onClick={(e) => { e.stopPropagation(); onClose(path); }}
-              className="ml-1 text-zinc-700 hover:text-zinc-400"
+              className="ml-0.5 text-[9px] text-zinc-700 hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity"
               role="button"
             >
-              x
+              ✕
             </span>
+            {isActive && (
+              <span className="absolute bottom-0 left-2 right-2 h-px bg-sky-500/50" />
+            )}
           </button>
         );
       })}

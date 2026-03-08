@@ -6,7 +6,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn update_editor_context(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     context: EditorContext,
 ) -> Result<(), AppError> {
     state.editor_context_manager.update(context).await;

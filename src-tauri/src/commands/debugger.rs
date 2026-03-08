@@ -5,7 +5,7 @@ use crate::core::debugger::types::DebugSession;
 
 #[tauri::command]
 pub async fn debug_start(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     adapter: String,
     program: String,
 ) -> Result<(), AppError> {
@@ -19,13 +19,13 @@ pub async fn debug_start(
 }
 
 #[tauri::command]
-pub async fn debug_stop(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn debug_stop(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     state.debug_manager.stop().await.map_err(AppError::Debug)
 }
 
 #[tauri::command]
 pub async fn debug_set_breakpoint(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
     line: u32,
 ) -> Result<(), AppError> {
@@ -34,7 +34,7 @@ pub async fn debug_set_breakpoint(
 
 #[tauri::command]
 pub async fn debug_remove_breakpoint(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
     line: u32,
 ) -> Result<(), AppError> {
@@ -42,26 +42,26 @@ pub async fn debug_remove_breakpoint(
 }
 
 #[tauri::command]
-pub async fn debug_continue(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn debug_continue(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     state.debug_manager.continue_execution().await.map_err(AppError::Debug)
 }
 
 #[tauri::command]
-pub async fn debug_step_over(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn debug_step_over(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     state.debug_manager.step_over().await.map_err(AppError::Debug)
 }
 
 #[tauri::command]
-pub async fn debug_step_into(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn debug_step_into(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     state.debug_manager.step_into().await.map_err(AppError::Debug)
 }
 
 #[tauri::command]
-pub async fn debug_step_out(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn debug_step_out(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     state.debug_manager.step_out().await.map_err(AppError::Debug)
 }
 
 #[tauri::command]
-pub async fn debug_get_session(state: State<'_, AppState>) -> Result<DebugSession, AppError> {
+pub async fn debug_get_session(state: State<'_, std::sync::Arc<AppState>>) -> Result<DebugSession, AppError> {
     Ok(state.debug_manager.get_session().await)
 }

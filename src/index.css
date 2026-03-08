@@ -3,28 +3,28 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-background: #000000;
+  --color-background: #050507;
   --color-foreground: #e4e4e7;
-  --color-card: #050505;
+  --color-card: #0a0a0d;
   --color-card-foreground: #d4d4d8;
-  --color-popover: #050505;
+  --color-popover: #0e0e12;
   --color-popover-foreground: #d4d4d8;
   --color-primary: #d4d4d8;
   --color-primary-foreground: #09090b;
-  --color-secondary: #111113;
+  --color-secondary: #0c0c10;
   --color-secondary-foreground: #d4d4d8;
-  --color-muted: #111113;
+  --color-muted: #0c0c10;
   --color-muted-foreground: #52525b;
-  --color-accent: #1a1a1e;
+  --color-accent: #141418;
   --color-accent-foreground: #d4d4d8;
   --color-destructive: #7f1d1d;
   --color-destructive-foreground: #d4d4d8;
-  --color-border: #1e1e22;
-  --color-input: #1e1e22;
+  --color-border: #1a1a1f;
+  --color-input: #1a1a1f;
   --color-ring: #a1a1aa;
-  --color-panel-border: #27272a;
+  --color-panel-border: #222228;
 
-  --radius: 0px;
+  --radius: 3px;
 }
 
 html, body, #root {
@@ -36,9 +36,10 @@ body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.5;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -55,10 +56,43 @@ body {
   animation: blink 1s step-end infinite;
 }
 
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+.animate-pulse-dot-delay-1 {
+  animation: pulse-dot 1.8s ease-in-out 0.3s infinite;
+}
+
+.animate-pulse-dot-delay-2 {
+  animation: pulse-dot 1.8s ease-in-out 0.6s infinite;
+}
+
+@keyframes preview-glow {
+  0%, 100% {
+    text-shadow: 0 0 4px rgba(34,211,238,0.4), 0 0 8px rgba(34,211,238,0.2);
+    filter: drop-shadow(0 0 3px rgba(34,211,238,0.3));
+  }
+  50% {
+    text-shadow: 0 0 10px rgba(34,211,238,0.9), 0 0 20px rgba(34,211,238,0.5), 0 0 30px rgba(34,211,238,0.3);
+    filter: drop-shadow(0 0 8px rgba(34,211,238,0.7));
+  }
+}
+
+.animate-preview-glow {
+  animation: preview-glow 2s ease-in-out infinite;
+}
+
 /* -- btop-style TUI panel -- */
 .tui-panel {
   position: relative;
   border: 1px solid var(--color-panel-border);
+  border-radius: 2px;
   padding: 6px 8px;
   min-height: 0;
 }

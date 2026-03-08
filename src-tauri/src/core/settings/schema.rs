@@ -1,11 +1,29 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PermissionMode {
+    Full,
+    Default,
+    Plan,
+}
+
+impl std::default::Default for PermissionMode {
+    fn default() -> Self {
+        PermissionMode::Full
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub model: String,
     pub theme: Theme,
     pub font_size: u8,
     pub keybinding_preset: KeybindingPreset,
+    #[serde(default)]
+    pub personality: String,
+    #[serde(default)]
+    pub permission_mode: PermissionMode,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -31,6 +49,8 @@ impl Default for Settings {
             theme: Theme::Dark,
             font_size: 13,
             keybinding_preset: KeybindingPreset::Default,
+            personality: String::new(),
+            permission_mode: PermissionMode::Full,
         }
     }
 }

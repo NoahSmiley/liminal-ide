@@ -54,32 +54,35 @@ export function CodeBlock({ code, filename }: CodeBlockProps) {
   }, [displayCode, filename, collapsed]);
 
   const headerLabel = filename ?? "code";
-  const lineLabel = lineCount > 1 ? `${headerLabel} — ${lineCount} lines` : headerLabel;
 
   return (
-    <div className="border border-zinc-800 my-2">
+    <div className="border border-panel-border/80 rounded-[3px] shadow-md shadow-black/40 overflow-hidden my-2">
       <div
-        className="flex items-center justify-between px-3 py-1 bg-zinc-950 text-[10px] text-zinc-500 cursor-pointer"
+        className="flex items-center justify-between px-3 py-2 bg-card/80 border-b border-border/50 cursor-pointer"
         onClick={() => setCollapsed(!collapsed)}
       >
-        <span>{lineLabel}</span>
-        <span>{collapsed ? "+" : "-"}</span>
+        <span className="flex items-center gap-2 text-[11px] text-zinc-400 tracking-wide">
+          <span className="text-zinc-600">◆</span>
+          {headerLabel}
+          {lineCount > 1 && <span className="text-zinc-600">— {lineCount} lines</span>}
+        </span>
+        <span className="text-zinc-600 text-[11px]">{collapsed ? "diff" : "collapse"}</span>
       </div>
       {!collapsed && (
-        <div>
+        <div className="bg-card/50">
           <div ref={containerRef} className="overflow-x-auto" />
           {isCompacted && (
             <button
               onClick={() => setExpanded(true)}
-              className="w-full bg-zinc-950 text-[10px] text-zinc-500 hover:text-zinc-300 py-1 border-t border-zinc-800"
+              className="w-full text-[10px] text-zinc-500 hover:text-zinc-300 py-1.5 border-t border-border/50 transition-colors"
             >
-              show all {lineCount} lines
+              +{lineCount - COMPACT_LINE_LIMIT} lines
             </button>
           )}
           {expanded && needsCompaction && (
             <button
               onClick={() => setExpanded(false)}
-              className="w-full bg-zinc-950 text-[10px] text-zinc-500 hover:text-zinc-300 py-1 border-t border-zinc-800"
+              className="w-full text-[10px] text-zinc-500 hover:text-zinc-300 py-1.5 border-t border-border/50 transition-colors"
             >
               collapse
             </button>

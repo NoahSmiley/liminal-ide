@@ -7,7 +7,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn list_change_history(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<ChangeTurn>, AppError> {
     let tracker = state.change_tracker_arc();
     Ok(tracker.list_turns().await)
@@ -15,7 +15,7 @@ pub async fn list_change_history(
 
 #[tauri::command]
 pub async fn list_turn_changes(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     turn_id: Uuid,
 ) -> Result<ChangeTurn, AppError> {
     let tracker = state.change_tracker_arc();
@@ -27,7 +27,7 @@ pub async fn list_turn_changes(
 
 #[tauri::command]
 pub async fn revert_turn(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     turn_id: Uuid,
 ) -> Result<(), AppError> {
     let tracker = state.change_tracker_arc();

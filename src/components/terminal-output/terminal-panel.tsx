@@ -25,7 +25,7 @@ export function TerminalPanel({
       <pre className="text-zinc-400 whitespace-pre-wrap">{output}</pre>
       {exited && (
         <div className="flex items-center gap-2 mt-1">
-          <span className={`text-[11px] ${exitCode === 0 ? "text-emerald-500" : "text-red-400"}`}>
+          <span className={`text-[11px] ${exitCode === 0 ? "text-sky-500" : "text-red-400"}`}>
             process exited with code {exitCode}
           </span>
           {output && onPinOutput && (

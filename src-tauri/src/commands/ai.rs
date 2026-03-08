@@ -11,7 +11,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn send_message(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     session_id: Uuid,
     content: String,
 ) -> Result<(), AppError> {
@@ -23,6 +23,15 @@ pub async fn send_message(
         )
         .await
         .map_err(AppError::Session)?;
+
+    // Broadcast user message to relay clients (iOS companion)
+    state.event_bus.emit(AppEvent::Session(
+        crate::core::events::SessionEvent::MessageAdded {
+            session_id,
+            role: "user".to_string(),
+            content: content.clone(),
+        },
+    ));
 
     let event_bus = state.event_bus.clone();
     let session_manager = state.session_manager.clone();
@@ -39,18 +48,32 @@ pub async fn send_message(
         None => String::new(),
     };
     let editor_context = state.editor_context_manager.format_for_prompt().await;
+    let settings = state.settings_manager.get().await;
+    let personality = settings.personality;
+    let permission_mode = settings.permission_mode;
+    let active_agent = state.agent_manager.get_active().await;
+    let model = active_agent.as_ref()
+        .and_then(|a| a.model.clone())
+        .unwrap_or(model);
 
     let handle = tokio::spawn(async move {
         eprintln!("[liminal] spawning claude for session {session_id}");
         change_tracker.begin_turn(session_id).await;
 
-        let mut system_prompt = AiEngine::system_prompt(project_root.as_deref(), &pinned_context);
+        let mut system_prompt = AiEngine::system_prompt(project_root.as_deref(), &pinned_context, &personality);
+        if let Some(ref agent) = active_agent {
+            system_prompt.push_str(&format!(
+                "\n\nACTIVE AGENT TEMPLATE: \"{}\"\n{}",
+                agent.name, agent.system_prompt
+            ));
+        }
         if !editor_context.is_empty() {
             system_prompt.push_str(&editor_context);
         }
         let future = crate::core::ai_engine::streaming::stream_claude_response(
             &event_bus, session_id, &content, &system_prompt,
             &model, cli_sid.as_deref(), project_root.as_deref(), &change_tracker,
+            &permission_mode,
         );
 
         let result = tokio::time::timeout(Duration::from_secs(timeout_secs), future).await;
@@ -111,7 +134,7 @@ fn run_lint_silently(event_bus: &crate::core::events::EventBus, root: &std::path
 }
 
 #[tauri::command]
-pub async fn cancel_message(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cancel_message(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     let mut task = state.active_ai_task.lock().await;
     if let Some(handle) = task.take() {
         handle.abort();

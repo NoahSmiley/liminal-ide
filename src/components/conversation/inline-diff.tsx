@@ -8,7 +8,7 @@ interface InlineDiffProps {
 }
 
 const LINE_COLORS: Record<DiffLine["type"], string> = {
-  added: "bg-emerald-950/40 text-emerald-300",
+  added: "bg-sky-950/40 text-sky-300",
   removed: "bg-red-950/40 text-red-400 line-through",
   unchanged: "text-zinc-500",
 };
@@ -26,21 +26,21 @@ export function InlineDiff({ path, before, after }: InlineDiffProps) {
   const changedCount = lines.filter((l) => l.type !== "unchanged").length;
 
   return (
-    <div className="mt-1 border border-zinc-800/40 rounded text-[11px]">
+    <div className="mt-1 border border-panel-border/60 rounded-[2px] text-[11px]">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-2 py-1 text-left hover:bg-zinc-900/50"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-900/30 transition-colors"
       >
-        <span className="text-zinc-600">{expanded ? "v" : ">"}</span>
+        <span className="text-zinc-600 text-[10px]">{expanded ? "▾" : "▸"}</span>
         <span className="text-zinc-400 truncate flex-1">{path}</span>
         <span className="text-zinc-600">
-          {isNew ? "new file" : `${changedCount} lines changed`}
+          {isNew ? "new file" : `${changedCount} lines`}
         </span>
       </button>
       {expanded && (
-        <div className="max-h-48 overflow-y-auto border-t border-zinc-800/40">
+        <div className="max-h-48 overflow-y-auto border-t border-border/40 bg-card/30">
           {lines.map((line, i) => (
-            <div key={i} className={`px-2 font-mono ${LINE_COLORS[line.type]}`}>
+            <div key={i} className={`px-3 font-mono leading-relaxed ${LINE_COLORS[line.type]}`}>
               <span className="inline-block w-4 text-zinc-700 select-none">
                 {PREFIX[line.type]}
               </span>

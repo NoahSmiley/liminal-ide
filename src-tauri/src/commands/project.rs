@@ -18,7 +18,7 @@ fn resolve_path(raw: &str) -> PathBuf {
 
 #[tauri::command]
 pub async fn create_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     name: String,
     path: String,
 ) -> Result<Project, AppError> {
@@ -32,7 +32,7 @@ pub async fn create_project(
 
 #[tauri::command]
 pub async fn open_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     path: String,
 ) -> Result<Project, AppError> {
     let project = state
@@ -54,7 +54,7 @@ async fn start_watcher(state: &AppState, root: &std::path::Path) {
 
 #[tauri::command]
 pub async fn remove_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     id: Uuid,
 ) -> Result<(), AppError> {
     state.project_manager.remove_project(id).await?;
@@ -63,7 +63,7 @@ pub async fn remove_project(
 
 #[tauri::command]
 pub async fn list_projects(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<ProjectSummary>, AppError> {
     let projects = state.project_manager.list_projects().await;
     Ok(projects)
@@ -71,7 +71,7 @@ pub async fn list_projects(
 
 #[tauri::command]
 pub async fn get_active_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Option<Project>, AppError> {
     let project = state.project_manager.get_active().await;
     Ok(project)
@@ -79,7 +79,7 @@ pub async fn get_active_project(
 
 #[tauri::command]
 pub async fn switch_project(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     project_id: Uuid,
 ) -> Result<Project, AppError> {
     let project = state.project_manager.switch_to(project_id).await?;
@@ -89,7 +89,7 @@ pub async fn switch_project(
 
 #[tauri::command]
 pub async fn update_project_workspace(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     project_id: Uuid,
     workspace: Option<String>,
 ) -> Result<(), AppError> {

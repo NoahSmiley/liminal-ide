@@ -6,14 +6,14 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn list_plugins(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<PluginInfo>, AppError> {
     Ok(state.plugin_manager.scan_plugins())
 }
 
 #[tauri::command]
 pub async fn run_plugin_command(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     plugin_name: String,
     command_name: String,
 ) -> Result<String, AppError> {

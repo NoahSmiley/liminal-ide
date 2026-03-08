@@ -6,14 +6,14 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn list_snippets(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
 ) -> Result<Vec<Snippet>, AppError> {
     Ok(state.snippet_manager.list().await)
 }
 
 #[tauri::command]
 pub async fn add_snippet(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     title: String,
     language: String,
     content: String,
@@ -24,7 +24,7 @@ pub async fn add_snippet(
 
 #[tauri::command]
 pub async fn remove_snippet(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     id: String,
 ) -> Result<(), AppError> {
     state.snippet_manager.remove(&id).await

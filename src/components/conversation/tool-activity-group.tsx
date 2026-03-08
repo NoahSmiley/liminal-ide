@@ -44,19 +44,19 @@ export function ToolActivityGroup({ messages, onOpenFile }: ToolActivityGroupPro
   const allDone = messages.every((m) => m.content.endsWith("— done"));
 
   return (
-    <div className="mb-1">
+    <div className="py-0.5 pl-1">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-[12px] hover:text-zinc-400 transition-colors"
+        className="flex items-center gap-2 text-[10px] hover:text-zinc-400 transition-colors w-full"
       >
-        <span className={allDone ? "text-emerald-600" : "text-amber-500"}>
+        <span className={`text-[10px] ${allDone ? "text-sky-500/70" : "text-amber-500/80"}`}>
           {allDone ? "◆" : "◇"}
         </span>
         <span className="text-zinc-500">{buildSummary(messages)}</span>
-        <span className="text-zinc-700 text-[11px]">{expanded ? "▾" : "▸"}</span>
+        <span className="text-zinc-700 text-[11px] ml-auto">{messages.length} items</span>
       </button>
       {expanded && (
-        <div className="ml-4 mt-0.5">
+        <div className="ml-4 border-l border-border/40 pl-3 mt-0.5">
           {messages.map((msg, i) => (
             <ToolActivity key={i} message={msg} onOpenFile={onOpenFile} />
           ))}

@@ -6,7 +6,7 @@ interface DiffHunkProps {
 
 function lineColor(tag: DiffLine["tag"]): string {
   switch (tag) {
-    case "insert": return "bg-emerald-950/30 text-emerald-400";
+    case "insert": return "bg-sky-950/30 text-sky-400";
     case "delete": return "bg-red-950/30 text-red-400";
     default: return "text-zinc-500";
   }

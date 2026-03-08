@@ -13,7 +13,7 @@ pub struct UploadResult {
 
 #[tauri::command]
 pub async fn upload_image(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     base64_data: String,
     mime_type: String,
 ) -> Result<UploadResult, AppError> {

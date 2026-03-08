@@ -40,7 +40,9 @@ export function ResizeHandle({ onResize }: ResizeHandleProps) {
   return (
     <div
       onMouseDown={onMouseDown}
-      className="w-px shrink-0 cursor-col-resize bg-zinc-800/40 hover:bg-zinc-600 active:bg-zinc-500 transition-colors"
-    />
+      className="w-[9px] shrink-0 cursor-col-resize flex items-stretch justify-center group"
+    >
+      <div className="w-px bg-zinc-800/40 group-hover:bg-zinc-500 group-active:bg-zinc-400 transition-colors" />
+    </div>
   );
 }

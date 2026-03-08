@@ -21,7 +21,7 @@ export function DiffReviewPanel({
           {staged.files.length} file{staged.files.length > 1 ? "s" : ""} changed
         </span>
         <div className="flex items-center gap-2">
-          <button onClick={onAcceptAll} className="text-emerald-500 hover:text-emerald-400">
+          <button onClick={onAcceptAll} className="text-sky-500 hover:text-sky-400">
             accept all
           </button>
           <button onClick={onRejectAll} className="text-red-500 hover:text-red-400">
@@ -37,7 +37,7 @@ export function DiffReviewPanel({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => onAcceptFile(file.path)}
-                  className="text-emerald-600 hover:text-emerald-400"
+                  className="text-sky-600 hover:text-sky-400"
                 >
                   accept
                 </button>

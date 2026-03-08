@@ -14,7 +14,7 @@ export function LintResult({ success, output, command, onSendToAi, onDismiss }: 
   return (
     <div className="flex flex-col gap-1 px-2 py-1 text-[11px] border border-zinc-800/40 rounded bg-zinc-950/50 my-1">
       <div className="flex items-center gap-2">
-        <span className={success ? "text-emerald-500" : "text-red-400"}>
+        <span className={success ? "text-sky-500" : "text-red-400"}>
           {success ? "v" : "x"}
         </span>
         <span className="text-zinc-400">{command}</span>

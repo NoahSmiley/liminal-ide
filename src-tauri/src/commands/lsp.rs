@@ -7,7 +7,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn lsp_start(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     project_root: String,
 ) -> Result<Vec<String>, AppError> {
     let root = PathBuf::from(project_root);
@@ -19,14 +19,14 @@ pub async fn lsp_start(
 }
 
 #[tauri::command]
-pub async fn lsp_stop(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn lsp_stop(state: State<'_, std::sync::Arc<AppState>>) -> Result<(), AppError> {
     state.lsp_manager.stop_all().await;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn lsp_open_document(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     server_name: String,
     path: String,
     content: String,
@@ -50,7 +50,7 @@ pub async fn lsp_open_document(
 
 #[tauri::command]
 pub async fn lsp_did_change(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     server_name: String,
     path: String,
     content: String,
@@ -70,7 +70,7 @@ pub async fn lsp_did_change(
 
 #[tauri::command]
 pub async fn lsp_close_document(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     server_name: String,
     path: String,
 ) -> Result<(), AppError> {
@@ -87,7 +87,7 @@ pub async fn lsp_close_document(
 
 #[tauri::command]
 pub async fn lsp_request_completion(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     server_name: String,
     path: String,
     line: u32,
@@ -107,7 +107,7 @@ pub async fn lsp_request_completion(
 
 #[tauri::command]
 pub async fn lsp_goto_definition(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     server_name: String,
     path: String,
     line: u32,
@@ -127,7 +127,7 @@ pub async fn lsp_goto_definition(
 
 #[tauri::command]
 pub async fn lsp_hover(
-    state: State<'_, AppState>,
+    state: State<'_, std::sync::Arc<AppState>>,
     server_name: String,
     path: String,
     line: u32,

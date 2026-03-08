@@ -1,10 +1,37 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { DebugSession } from "../types/debug-types";
+import { useTauriEvent } from "./use-tauri-event";
+import type { DebugSession, StackFrame, Variable } from "../types/debug-types";
+
+interface DebugEventPayload {
+  type: "Debug";
+  payload: { kind: string; reason?: string; thread_id?: number; exit_code?: number; frames?: StackFrame[]; variables?: Variable[] };
+}
 
 export function useDebugger() {
   const [session, setSession] = useState<DebugSession | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useTauriEvent<DebugEventPayload>("debug:event", (event) => {
+    const p = event.payload;
+    setSession((prev) => {
+      if (!prev) return prev;
+      switch (p.kind) {
+        case "Stopped":
+          return { ...prev, state: { state: "Paused", reason: p.reason ?? "unknown" } };
+        case "Continued":
+          return { ...prev, state: { state: "Running" } };
+        case "Exited":
+          return { ...prev, state: { state: "Exited", code: p.exit_code ?? 0 } };
+        case "StackFrames":
+          return { ...prev, stack_frames: p.frames ?? [] };
+        case "Variables":
+          return { ...prev, variables: p.variables ?? [] };
+        default:
+          return prev;
+      }
+    });
+  });
 
   const refresh = useCallback(async () => {
     try {
@@ -27,8 +54,8 @@ export function useDebugger() {
 
   const stop = useCallback(async () => {
     await invoke("debug_stop");
-    await refresh();
-  }, [refresh]);
+    setSession(null);
+  }, []);
 
   const setBreakpoint = useCallback(async (path: string, line: number) => {
     await invoke("debug_set_breakpoint", { path, line });
@@ -42,23 +69,19 @@ export function useDebugger() {
 
   const continueExec = useCallback(async () => {
     await invoke("debug_continue");
-    await refresh();
-  }, [refresh]);
+  }, []);
 
   const stepOver = useCallback(async () => {
     await invoke("debug_step_over");
-    await refresh();
-  }, [refresh]);
+  }, []);
 
   const stepInto = useCallback(async () => {
     await invoke("debug_step_into");
-    await refresh();
-  }, [refresh]);
+  }, []);
 
   const stepOut = useCallback(async () => {
     await invoke("debug_step_out");
-    await refresh();
-  }, [refresh]);
+  }, []);
 
   return {
     session, loading, refresh,
